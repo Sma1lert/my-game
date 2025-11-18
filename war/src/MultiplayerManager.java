@@ -6,7 +6,7 @@ public class MultiplayerManager {
     private int localPlayerId;
     private boolean isMultiplayer = false;
     private GamePanel gamePanel;
-    
+ 
     public MultiplayerManager() {
         remotePlayers = new HashMap<>();
         network = new NetworkManager(this);
@@ -22,7 +22,6 @@ public class MultiplayerManager {
     public GamePanel getGamePanel() {
         return gamePanel;
     }
-    
     // Получение сетевого менеджера
     public NetworkManager getNetworkManager() {
         return network;
@@ -68,42 +67,41 @@ public class MultiplayerManager {
         }
     }
     
-    // Отправка сида мира всем клиентам
     public void sendWorldSeed(long worldSeed) {
-        if (isMultiplayer) {
-            String message = "WORLD_SEED:" + worldSeed;
-            network.broadcastMessage(message);
-            System.out.println("🌍 Отправлен сид мира: " + worldSeed);
-        }
+    if (isMultiplayer) {
+        String message = "WORLD_SEED:" + worldSeed;
+        network.broadcastMessage(message);
+        System.out.println("🌍 Отправлен сид мира: " + worldSeed);
     }
-    
-    // Отправка сида мира конкретному клиенту
-    public void sendWorldSeedToClient(ClientHandler client, long worldSeed) {
-        if (isMultiplayer && client != null) {
-            String message = "WORLD_SEED:" + worldSeed;
-            network.sendToClient(client, message);
-            System.out.println("🌍 Отправлен сид мира клиенту " + client.getPlayerId() + ": " + worldSeed);
-        }
+}
+
+// Отправка сида мира конкретному клиенту
+public void sendWorldSeedToClient(ClientHandler client, long worldSeed) {
+    if (isMultiplayer && client != null) {
+        String message = "WORLD_SEED:" + worldSeed;
+        network.sendToClient(client, message);
+        System.out.println("🌍 Отправлен сид мира клиенту " + client.getPlayerId() + ": " + worldSeed);
     }
+}
     
     public void addRemotePlayer(int playerId, double x, double y) {
-        if (!remotePlayers.containsKey(playerId)) {
-            remotePlayers.put(playerId, new MultiplayerPlayer(playerId, x, y));
-            System.out.println("🎮 Добавлен удаленный игрок ID: " + playerId + " на позиции: " + x + ", " + y);
-            
-            // Отправляем сид мира новому игроку, если мы хост
-            if (isServer() && gamePanel != null) {
-                long worldSeed = gamePanel.getWorldSeed();
-                // Находим клиента по ID и отправляем ему сид
-                for (ClientHandler client : network.getClients()) {
-                    if (client.getPlayerId() == playerId) {
-                        sendWorldSeedToClient(client, worldSeed);
-                        break;
-                    }
+    if (!remotePlayers.containsKey(playerId)) {
+        remotePlayers.put(playerId, new MultiplayerPlayer(playerId, x, y));
+        System.out.println("🎮 Добавлен удаленный игрок ID: " + playerId + " на позиции: " + x + ", " + y);
+        
+        // Отправляем сид мира новому игроку, если мы хост
+        if (isServer() && gamePanel != null) {
+            long worldSeed = gamePanel.getWorldSeed();
+            // Находим клиента по ID и отправляем ему сид
+            for (ClientHandler client : network.getClients()) {
+                if (client.getPlayerId() == playerId) {
+                    sendWorldSeedToClient(client, worldSeed);
+                    break;
                 }
             }
         }
     }
+}
     
     public void updateRemotePlayer(int playerId, double x, double y, int direction) {
         MultiplayerPlayer player = remotePlayers.get(playerId);

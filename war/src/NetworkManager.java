@@ -51,58 +51,7 @@ public class NetworkManager {
             return false;
         }
     }
-      private void handleGameMessage(String message) {
-        if (multiplayerManager == null) return;
-        
-        System.out.println("📨 Получено сообщение: " + message);
-        
-        if (message.startsWith("PLAYER_UPDATE:")) {
-            // ... существующий код ...
-        } else if (message.startsWith("PLAYER_ASSIGN:")) {
-            String[] parts = message.split(":");
-            if (parts.length >= 6) { // Теперь 6 частей: PLAYER_ASSIGN:id:x:y:worldSeed
-                try {
-                    this.playerId = Integer.parseInt(parts[1]);
-                    String xStr = parts[2].replace(',', '.');
-                    String yStr = parts[3].replace(',', '.');
-                    String seedStr = parts[4].replace(',', '.');
-                    
-                    double spawnX = Double.parseDouble(xStr);
-                    double spawnY = Double.parseDouble(yStr);
-                    long worldSeed = Long.parseLong(seedStr);
-                    
-                    System.out.println("🎮 Назначен ID игрока: " + playerId + 
-                                     " с позицией спавна: " + spawnX + ", " + spawnY +
-                                     " и сидом мира: " + worldSeed);
-                    
-                    // Устанавливаем сид мира и позицию спавна
-                    if (multiplayerManager.getGamePanel() != null) {
-                        multiplayerManager.getGamePanel().setWorldSeed(worldSeed);
-                        multiplayerManager.getGamePanel().setPlayerSpawnPosition(spawnX, spawnY);
-                    }
-                } catch (NumberFormatException e) {
-                    System.out.println("❌ Ошибка парсинга PLAYER_ASSIGN: " + e.getMessage());
-                }
-            }
-        } else if (message.startsWith("WORLD_SEED:")) {
-            // Отдельное сообщение с сидом мира (альтернативный способ)
-            String[] parts = message.split(":");
-            if (parts.length >= 2) {
-                try {
-                    long worldSeed = Long.parseLong(parts[1]);
-                    System.out.println("🌍 Получен сид мира: " + worldSeed);
-                    
-                    if (multiplayerManager.getGamePanel() != null) {
-                        multiplayerManager.getGamePanel().setWorldSeed(worldSeed);
-                    }
-                } catch (NumberFormatException e) {
-                    System.out.println("❌ Ошибка парсинга WORLD_SEED: " + e.getMessage());
-                }
-            }
-        }
-        // ... остальной код ...
-    }
-
+    
     private void acceptConnections() {
         while (!serverSocket.isClosed()) {
             try {
@@ -130,10 +79,15 @@ public class NetworkManager {
                     
                     multiplayerManager.addRemotePlayer(newPlayerId, newPlayerX, newPlayerY);
                     
-                    // Отправляем новому игроку его ID и позицию
-                    client.sendMessage("PLAYER_ASSIGN:" + newPlayerId + ":" + newPlayerX + ":" + newPlayerY);
+                    // Отправляем новому игроку его ID, позицию и СИД МИРА
+                    long worldSeed = gamePanel != null ? gamePanel.getWorldSeed() : System.currentTimeMillis();
+                    client.sendMessage("PLAYER_ASSIGN:" + newPlayerId + ":" + newPlayerX + ":" + newPlayerY + ":" + worldSeed);
                     System.out.println("🎮 Создан удаленный игрок ID: " + newPlayerId + 
-                                     " на позиции: " + newPlayerX + ", " + newPlayerY);
+                                     " на позиции: " + newPlayerX + ", " + newPlayerY +
+                                     " с сидом: " + worldSeed);
+                    
+                    // Также отдельно отправляем сид мира (на случай если PLAYER_ASSIGN не обработается)
+                    client.sendMessage("WORLD_SEED:" + worldSeed);
                 }
             } catch (IOException e) {
                 if (!serverSocket.isClosed()) {
@@ -281,7 +235,7 @@ class ClientHandler implements Runnable {
                 try {
                     int playerId = Integer.parseInt(parts[1]);
                     
-                    // ИСПРАВЛЕНИЕ: Заменяем запятые на точки
+                    // ИСПРАВЛЕНИЕ: Заменяем запятые на точки для корректного парсинга
                     String xStr = parts[2].replace(',', '.');
                     String yStr = parts[3].replace(',', '.');
                     
@@ -296,24 +250,46 @@ class ClientHandler implements Runnable {
                 }
             }
         } else if (message.startsWith("PLAYER_ASSIGN:")) {
-            // ОБНОВЛЕНО: Теперь получаем и позицию спавна
+            // ОБНОВЛЕНО: Теперь получаем ID, позицию спавна и СИД МИРА
             String[] parts = message.split(":");
-            if (parts.length >= 4) {
+            if (parts.length >= 5) {
                 try {
                     this.playerId = Integer.parseInt(parts[1]);
                     String xStr = parts[2].replace(',', '.');
                     String yStr = parts[3].replace(',', '.');
+                    String seedStr = parts[4].replace(',', '.');
+                    
                     double spawnX = Double.parseDouble(xStr);
                     double spawnY = Double.parseDouble(yStr);
+                    long worldSeed = Long.parseLong(seedStr);
                     
-                    System.out.println("🎮 Назначен ID игрока: " + playerId + " с позицией спавна: " + spawnX + ", " + spawnY);
+                    System.out.println("🎮 Назначен ID игрока: " + playerId + 
+                                     " с позицией спавна: " + spawnX + ", " + spawnY +
+                                     " и сидом мира: " + worldSeed);
                     
-                    // Устанавливаем позицию спавна для этого игрока
+                    // Устанавливаем позицию спавна и СИД МИРА для этого игрока
                     if (multiplayerManager.getGamePanel() != null) {
                         multiplayerManager.getGamePanel().setPlayerSpawnPosition(spawnX, spawnY);
+                        multiplayerManager.getGamePanel().setWorldSeed(worldSeed);
                     }
                 } catch (NumberFormatException e) {
                     System.out.println("❌ Ошибка парсинга PLAYER_ASSIGN: " + e.getMessage());
+                }
+            }
+        } else if (message.startsWith("WORLD_SEED:")) {
+            // Отдельное сообщение с сидом мира (на случай если PLAYER_ASSIGN не прошел)
+            String[] parts = message.split(":");
+            if (parts.length >= 2) {
+                try {
+                    long worldSeed = Long.parseLong(parts[1]);
+                    System.out.println("🌍 Получен сид мира от хоста: " + worldSeed);
+                    
+                    // Устанавливаем сид мира на клиенте
+                    if (multiplayerManager.getGamePanel() != null) {
+                        multiplayerManager.getGamePanel().setWorldSeed(worldSeed);
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("❌ Ошибка парсинга WORLD_SEED: " + e.getMessage());
                 }
             }
         } else if (message.equals("PING")) {

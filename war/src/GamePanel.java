@@ -85,18 +85,18 @@ public class GamePanel extends JPanel implements KeyListener {
     }
     
      private void initializeGame() {
-        visibleTilesX = GameConstants.SCREEN_WIDTH / GameConstants.TILE_SIZE;
-        visibleTilesY = (GameConstants.SCREEN_HEIGHT - 100) / GameConstants.TILE_SIZE;
-        
-        map = new char[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
-        biomes = new int[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
-        rabbits = new ArrayList<>();
-        
-        // Инициализируем сид (будет переопределен при мультиплеере)
-        this.worldSeed = System.currentTimeMillis();
-        
-        generateWorld();
-        generateRabbits();
+    visibleTilesX = GameConstants.SCREEN_WIDTH / GameConstants.TILE_SIZE;
+    visibleTilesY = (GameConstants.SCREEN_HEIGHT - 100) / GameConstants.TILE_SIZE;
+    
+    map = new char[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
+    biomes = new int[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
+    rabbits = new ArrayList<>();
+    
+    // Инициализируем сид (будет переопределен при мультиплеере)
+    this.worldSeed = System.currentTimeMillis();
+    
+    generateWorld();
+    generateRabbits();
         
         int startX, startY;
         do {
@@ -537,7 +537,7 @@ public class GamePanel extends JPanel implements KeyListener {
         );
     }
 }
-    
+  
     private void updateRabbits() {
         Iterator<Rabbit> iterator = rabbits.iterator();
         while (iterator.hasNext()) {
@@ -711,18 +711,19 @@ public class GamePanel extends JPanel implements KeyListener {
         drawTerrainSymbol(g, x, y, terrain, color);
     }
     public void setWorldSeed(long seed) {
-        this.worldSeed = seed;
-        System.out.println("🌍 Установлен сид мира: " + seed);
-        // Перегенерируем мир с новым сидом
-        regenerateWorld();
-    }
+    this.worldSeed = seed;
+    System.out.println("🌍 Установлен сид мира: " + seed);
     
-    /**
-     * Получить текущий сид мира
-     */
-    public long getWorldSeed() {
-        return worldSeed;
-    }
+    // Перегенерируем мир с новым сидом
+    regenerateWorld();
+}
+
+/**
+ * Получить текущий сид мира
+ */
+public long getWorldSeed() {
+    return worldSeed;
+}
      private void regenerateWorld() {
         System.out.println("🔄 Перегенерация мира с сидом: " + worldSeed);
         
