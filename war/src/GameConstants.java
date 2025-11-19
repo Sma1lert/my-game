@@ -2,7 +2,7 @@ import java.awt.Color;
 
 public class GameConstants {
     // Размеры всей карты
-    public static final int MAP_WIDTH = 1000;
+ public static final int MAP_WIDTH = 1000;
     public static final int MAP_HEIGHT = 1000;
 
 
@@ -17,8 +17,8 @@ public static final int ATTACK_DAMAGE = 5;     // Урон атаки
     public static final int RABBIT_EXPERIENCE = 10;
     
     // Размеры окна
-    public static final int SCREEN_WIDTH = 800;
-    public static final int SCREEN_HEIGHT = 600;
+    public static final int SCREEN_WIDTH = 1200;
+    public static final int SCREEN_HEIGHT = 800;
     
     // Размер тайла в пикселях
     public static final int TILE_SIZE = 32;
@@ -32,7 +32,23 @@ public static final int ATTACK_DAMAGE = 5;     // Урон атаки
     public static final char EMPTY = ' ';
     public static final char CAVE_ENTRANCE = 'C';
     public static final char ENEMY = 'E';
-    
+     public static final Color UI_BACKGROUND = new Color(20, 20, 30, 220);
+    public static final Color UI_BORDER = new Color(80, 80, 120);
+    public static final Color HEALTH_COLOR = new Color(220, 60, 60);
+    public static final Color HEALTH_BG_COLOR = new Color(100, 30, 30);
+    public static final Color HUNGER_COLOR = new Color(255, 165, 0);
+    public static final Color HUNGER_BG_COLOR = new Color(100, 70, 0);
+    public static final Color EXP_COLOR = new Color(100, 200, 255);
+    public static final Color EXP_BG_COLOR = new Color(30, 80, 120);
+    public static final Color TEXT_COLOR = new Color(240, 240, 240);
+    public static final Color LABEL_COLOR = new Color(180, 180, 220);
+
+    public static final int UI_PANEL_HEIGHT = 150;
+    public static final int UI_MARGIN = 15;
+    public static final int UI_ELEMENT_HEIGHT = 30;
+    public static final int UI_BAR_WIDTH = 200;
+    public static final int UI_BAR_HEIGHT = 20;
+
     // Настройки игрока
     public static final int MAX_HEALTH = 20;
     public static final int MAX_HUNGER = 20;
@@ -56,7 +72,6 @@ public static final int ATTACK_DAMAGE = 5;     // Урон атаки
     public static final String TEXTURE_GRASS = "grass";
     public static final String TEXTURE_TREE = "tree";
     public static final String TEXTURE_WATER = "water";
-    
     // ID предметов (только меч)
     public static final int ITEM_SWORD = 1;
     
@@ -76,8 +91,6 @@ public static final int ATTACK_DAMAGE = 5;     // Урон атаки
     public static final int INVENTORY_SLOT_SIZE = 40;
     
     // Цвета
-    public static final Color HEALTH_COLOR = new Color(255, 0, 0);
-    public static final Color HUNGER_COLOR = new Color(255, 165, 0);
     public static final Color BACKGROUND_COLOR = new Color(60, 60, 60);
     
     // Получить название текстуры по ID предмета

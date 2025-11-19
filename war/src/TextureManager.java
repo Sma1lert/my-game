@@ -45,6 +45,9 @@ public class TextureManager {
         // Создаем простую текстуру воды
         textures.put("water", createWaterTexture(32, 32));
         
+        // Создаем текстуры для интерфейса
+        createUITextures();
+        
         System.out.println("✅ Все текстуры загружены: " + textures.size());
         
         // Проверяем что текстуры доступны
@@ -53,6 +56,55 @@ public class TextureManager {
             System.out.println("🎯 " + textureName + ": " + 
                 texture.getWidth() + "x" + texture.getHeight());
         }
+    }
+    
+    private void createUITextures() {
+        // Текстуры для иконок интерфейса
+        textures.put("ui_health", createHealthIcon());
+        textures.put("ui_hunger", createHungerIcon());
+        textures.put("ui_level", createLevelIcon());
+        // ... другие иконки
+    }
+    
+    private BufferedImage createHealthIcon() {
+        BufferedImage icon = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = icon.createGraphics();
+        
+        g2d.setColor(new Color(220, 60, 60));
+        g2d.fillRect(4, 2, 8, 12);
+        g2d.setColor(new Color(150, 30, 30));
+        g2d.drawRect(4, 2, 8, 12);
+        
+        g2d.dispose();
+        return icon;
+    }
+    
+    private BufferedImage createHungerIcon() {
+        BufferedImage icon = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = icon.createGraphics();
+        
+        // Иконка еды (яблоко)
+        g2d.setColor(new Color(200, 40, 40));
+        g2d.fillOval(4, 3, 8, 8);
+        g2d.setColor(new Color(50, 150, 50));
+        g2d.fillRect(7, 1, 2, 4);
+        
+        g2d.dispose();
+        return icon;
+    }
+    
+    private BufferedImage createLevelIcon() {
+        BufferedImage icon = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = icon.createGraphics();
+        
+        // Иконка уровня (звезда)
+        g2d.setColor(new Color(255, 215, 0));
+        int[] xPoints = {8, 10, 14, 11, 12, 8, 4, 5, 2, 6};
+        int[] yPoints = {2, 6, 7, 9, 13, 11, 13, 9, 7, 6};
+        g2d.fillPolygon(xPoints, yPoints, 10);
+        
+        g2d.dispose();
+        return icon;
     }
     
     private void loadTextureFromFile(String textureName, String filePath) {

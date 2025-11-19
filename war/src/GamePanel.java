@@ -35,13 +35,13 @@ public class GamePanel extends JPanel implements KeyListener {
     private double mouseWorldY = 0;
     private boolean showAttackRange = false;
     
-    // Мультиплеер (временно отключен)
+    // Мультиплеер
     private MultiplayerManager multiplayerManager;
     private boolean isMultiplayer = false;
     
     public GamePanel(GameWindow gameWindow) {
-    this.gameWindow = gameWindow;
-    this.multiplayerManager = new MultiplayerManager();
+        this.gameWindow = gameWindow;
+        this.multiplayerManager = new MultiplayerManager();
         
         setPreferredSize(new Dimension(
             GameConstants.SCREEN_WIDTH,
@@ -52,6 +52,7 @@ public class GamePanel extends JPanel implements KeyListener {
         setFocusable(true);
         addKeyListener(this);
         this.multiplayerManager.setGamePanel(this);
+        
         // Добавляем обработчики мыши
         addMouseMotionListener(new MouseAdapter() {
             @Override
@@ -84,19 +85,19 @@ public class GamePanel extends JPanel implements KeyListener {
         initializeGame();
     }
     
-     private void initializeGame() {
-    visibleTilesX = GameConstants.SCREEN_WIDTH / GameConstants.TILE_SIZE;
-    visibleTilesY = (GameConstants.SCREEN_HEIGHT - 100) / GameConstants.TILE_SIZE;
-    
-    map = new char[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
-    biomes = new int[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
-    rabbits = new ArrayList<>();
-    
-    // Инициализируем сид (будет переопределен при мультиплеере)
-    this.worldSeed = System.currentTimeMillis();
-    
-    generateWorld();
-    generateRabbits();
+    private void initializeGame() {
+        visibleTilesX = GameConstants.SCREEN_WIDTH / GameConstants.TILE_SIZE;
+        visibleTilesY = (GameConstants.SCREEN_HEIGHT - GameConstants.UI_PANEL_HEIGHT) / GameConstants.TILE_SIZE;
+        
+        map = new char[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
+        biomes = new int[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
+        rabbits = new ArrayList<>();
+        
+        // Инициализируем сид (будет переопределен при мультиплеере)
+        this.worldSeed = System.currentTimeMillis();
+        
+        generateWorld();
+        generateRabbits();
         
         int startX, startY;
         do {
@@ -128,6 +129,8 @@ public class GamePanel extends JPanel implements KeyListener {
         System.out.println("🎮 Игрок создан в позиции: X=" + startX + " Y=" + startY);
     }
     
+    // ============ ГЕНЕРАЦИЯ МИРА ============
+    
     private void generateWorld() {
         generateBiomes();
         generateTerrainFromBiomes();
@@ -153,9 +156,9 @@ public class GamePanel extends JPanel implements KeyListener {
         for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
             for (int x = 0; x < GameConstants.MAP_WIDTH; x++) {
                 if (noise[y][x] > 0.1) {
-                    biomes[y][x] = 1;
+                    biomes[y][x] = 1; // Лес
                 } else {
-                    biomes[y][x] = 0;
+                    biomes[y][x] = 0; // Луг
                 }
             }
         }
@@ -368,6 +371,8 @@ public class GamePanel extends JPanel implements KeyListener {
         System.out.println("🐇 Сгенерировано " + rabbits.size() + " кроликов с сидом: " + worldSeed);
     }
     
+    // ============ PERLIN NOISE ============
+    
     private double perlinNoise(double x, double y) {
         int X = (int)Math.floor(x) & 255;
         int Y = (int)Math.floor(y) & 255;
@@ -422,6 +427,8 @@ public class GamePanel extends JPanel implements KeyListener {
         }
     }
     
+    // ============ ОСНОВНЫЕ МЕТОДЫ ИГРЫ ============
+    
     private void centerCameraOnPlayer() {
         cameraX = player.getExactX() - visibleTilesX / 2.0;
         cameraY = player.getExactY() - visibleTilesY / 2.0;
@@ -429,89 +436,74 @@ public class GamePanel extends JPanel implements KeyListener {
         cameraY = Math.max(0, Math.min(cameraY, GameConstants.MAP_HEIGHT - visibleTilesY));
     }
     
-    // Мультиплеер методы - временно отключены
-    public boolean startMultiplayerGame(boolean createGame) {
-    return startMultiplayerGame(createGame, "localhost");
-}
-    
     public boolean startMultiplayerGame(boolean createGame, String ip) {
-    if (createGame) {
-        if (multiplayerManager.createGame()) {
-            isMultiplayer = true;
-            
-            // Если мы сервер, добавляем второго игрока рядом с первым
-            if (multiplayerManager.isServer()) {
-                int player2X, player2Y;
-                int attempts = 0;
+        if (createGame) {
+            if (multiplayerManager.createGame()) {
+                isMultiplayer = true;
                 
-                // Пытаемся найти валидную позицию в радиусе 20 блоков от первого игрока
-                do {
-                    // Генерируем случайное смещение в радиусе 20 блоков
-                    double angle = Math.random() * 2 * Math.PI;
-                    double distance = 5 + Math.random() * 15; // От 5 до 20 блоков
+                // Если мы сервер, добавляем второго игрока рядом с первым
+                if (multiplayerManager.isServer()) {
+                    int player2X, player2Y;
+                    int attempts = 0;
                     
-                    player2X = (int)(player.getX() + Math.cos(angle) * distance);
-                    player2Y = (int)(player.getY() + Math.sin(angle) * distance);
+                    do {
+                        double angle = Math.random() * 2 * Math.PI;
+                        double distance = 5 + Math.random() * 15;
+                        
+                        player2X = (int)(player.getX() + Math.cos(angle) * distance);
+                        player2Y = (int)(player.getY() + Math.sin(angle) * distance);
+                        
+                        player2X = Math.max(0, Math.min(player2X, GameConstants.MAP_WIDTH - 1));
+                        player2Y = Math.max(0, Math.min(player2Y, GameConstants.MAP_HEIGHT - 1));
+                        
+                        attempts++;
+                    } while (attempts < 50 && 
+                            (map[player2Y][player2X] == GameConstants.WATER || 
+                             map[player2Y][player2X] == GameConstants.TREE));
                     
-                    // Проверяем границы карты
-                    player2X = Math.max(0, Math.min(player2X, GameConstants.MAP_WIDTH - 1));
-                    player2Y = Math.max(0, Math.min(player2Y, GameConstants.MAP_HEIGHT - 1));
+                    if (attempts >= 50) {
+                        player2X = (int)player.getX() + 5;
+                        player2Y = (int)player.getY() + 5;
+                        
+                        player2X = Math.max(0, Math.min(player2X, GameConstants.MAP_WIDTH - 1));
+                        player2Y = Math.max(0, Math.min(player2Y, GameConstants.MAP_HEIGHT - 1));
+                        
+                        System.out.println("⚠️ Не удалось найти идеальное место, спавним рядом: " + 
+                                         player2X + ", " + player2Y);
+                    }
                     
-                    attempts++;
-                } while (attempts < 50 && 
-                        (map[player2Y][player2X] == GameConstants.WATER || 
-                         map[player2Y][player2X] == GameConstants.TREE));
-                
-                // Если не нашли подходящее место за 50 попыток, ставим рядом без проверки
-                if (attempts >= 50) {
-                    player2X = (int)player.getX() + 5;
-                    player2Y = (int)player.getY() + 5;
-                    
-                    // Проверяем границы
-                    player2X = Math.max(0, Math.min(player2X, GameConstants.MAP_WIDTH - 1));
-                    player2Y = Math.max(0, Math.min(player2Y, GameConstants.MAP_HEIGHT - 1));
-                    
-                    System.out.println("⚠️ Не удалось найти идеальное место, спавним рядом: " + 
-                                     player2X + ", " + player2Y);
+                    multiplayerManager.addRemotePlayer(2, player2X, player2Y);
+                    System.out.println("🎮 Второй игрок создан рядом: X=" + player2X + " Y=" + player2Y);
                 }
                 
-                multiplayerManager.addRemotePlayer(2, player2X, player2Y);
-                System.out.println("🎮 Второй игрок создан рядом: X=" + player2X + " Y=" + player2Y + 
-                                 " (расстояние от первого: " + 
-                                 Math.sqrt(Math.pow(player2X - player.getX(), 2) + 
-                                          Math.pow(player2Y - player.getY(), 2)) + ")");
+                startGame();
+                return true;
             }
-            
-            startGame();
-            return true;
+        } else {
+            if (multiplayerManager.joinGame(ip)) {
+                isMultiplayer = true;
+                startGame();
+                return true;
+            }
         }
-    } else {
-        if (multiplayerManager.joinGame(ip)) {
-            isMultiplayer = true;
-            startGame();
-            return true;
-        }
+        return false;
     }
-    return false;
-}
-
     
     public void startGame() {
-    gameTimer = new Timer(50, e -> {
-        player.update();
-        updateRabbits();
-        updateCamera();
-        
-        // ВКЛЮЧАЕМ отправку позиции в сеть
-        if (isMultiplayer) {
-            sendPlayerUpdate();
-        }
-        
-        repaint();
-    });
-    gameTimer.start();
-    System.out.println("🎮 Игра запущена" + (isMultiplayer ? " (Мультиплеер)" : " (Одиночная)"));
-}
+        gameTimer = new Timer(50, e -> {
+            player.update();
+            updateRabbits();
+            updateCamera();
+            
+            if (isMultiplayer) {
+                sendPlayerUpdate();
+            }
+            
+            repaint();
+        });
+        gameTimer.start();
+        System.out.println("🎮 Игра запущена" + (isMultiplayer ? " (Мультиплеер)" : " (Одиночная)"));
+    }
     
     public void stopGame() {
         if (gameTimer != null) {
@@ -529,15 +521,15 @@ public class GamePanel extends JPanel implements KeyListener {
     }
     
     private void sendPlayerUpdate() {
-    if (isMultiplayer) {
-        multiplayerManager.updatePlayerPosition(
-            player.getExactX(), 
-            player.getExactY(), 
-            player.getDirection()
-        );
+        if (isMultiplayer) {
+            multiplayerManager.updatePlayerPosition(
+                player.getExactX(), 
+                player.getExactY(), 
+                player.getDirection()
+            );
+        }
     }
-}
-  
+    
     private void updateRabbits() {
         Iterator<Rabbit> iterator = rabbits.iterator();
         while (iterator.hasNext()) {
@@ -606,6 +598,8 @@ public class GamePanel extends JPanel implements KeyListener {
         }
     }
     
+    // ============ ОТРИСОВКА ============
+    
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -614,33 +608,9 @@ public class GamePanel extends JPanel implements KeyListener {
             drawInventoryScreen(g);
         } else {
             drawMap(g);
-            drawStatusPanel(g);
+            drawGameUI(g); // Новый улучшенный интерфейс
         }
     }
-    public boolean isValidSpawnPosition(int x, int y) {
-        if (x < 0 || x >= GameConstants.MAP_WIDTH || y < 0 || y >= GameConstants.MAP_HEIGHT) {
-            return false;
-        }
-        
-        char terrain = map[y][x];
-        return terrain != GameConstants.WATER && terrain != GameConstants.TREE;
-    }
-// ДОБАВЬТЕ эти методы:
-    
-    /**
-     * Получить X позицию игрока для спавна других игроков рядом
-     */
-    public double getPlayerX() {
-        return player.getExactX();
-    }
-    
-    /**
-     * Получить Y позицию игрока для спавна других игроков рядом
-     */
-    public double getPlayerY() {
-        return player.getExactY();
-    }
-    
     
     private void drawMap(Graphics g) {
         for (int screenY = 0; screenY < visibleTilesY; screenY++) {
@@ -666,19 +636,19 @@ public class GamePanel extends JPanel implements KeyListener {
             drawAttackRange(g);
         }
         
-            drawRabbits(g);
+        drawRabbits(g);
     
-    if (isAttacking) {
-        drawAttack(g);
+        if (isAttacking) {
+            drawAttack(g);
+        }
+        
+        drawPlayer(g);
+        
+        // Отрисовка удаленных игроков
+        if (isMultiplayer) {
+            drawRemotePlayers(g);
+        }
     }
-    
-    drawPlayer(g);
-    
-    // ВКЛЮЧАЕМ отрисовку удаленных игроков
-    if (isMultiplayer) {
-        drawRemotePlayers(g);
-    }
-}
     
     private void drawTerrain(Graphics g, int x, int y, char terrain) {
         String textureName = GameConstants.getTerrainTexture(terrain);
@@ -710,48 +680,7 @@ public class GamePanel extends JPanel implements KeyListener {
         
         drawTerrainSymbol(g, x, y, terrain, color);
     }
-    public void setWorldSeed(long seed) {
-    this.worldSeed = seed;
-    System.out.println("🌍 Установлен сид мира: " + seed);
     
-    // Перегенерируем мир с новым сидом
-    regenerateWorld();
-}
-
-/**
- * Получить текущий сид мира
- */
-public long getWorldSeed() {
-    return worldSeed;
-}
-     private void regenerateWorld() {
-        System.out.println("🔄 Перегенерация мира с сидом: " + worldSeed);
-        
-        // Восстанавливаем позицию игрока перед регенерацией
-        double oldX = player.getExactX();
-        double oldY = player.getExactY();
-        
-        // Перегенерируем мир
-        generateWorld();
-        generateRabbits();
-        
-        // Восстанавливаем позицию игрока
-        player = new Player((int)oldX, (int)oldY);
-        centerCameraOnPlayer();
-        
-        System.out.println("✅ Мир перегенерирован, игрок на позиции: " + oldX + ", " + oldY);
-    }
-    
-    /**
-     * Перегенерировать мир с указанным сидом
-     */
-    public void regenerateWorldWithSeed(long seed) {
-        this.worldSeed = seed;
-        regenerateWorld();
-    }
-    
-    // В методе initializeGame() измените генерацию мира:
-     
     private void drawTerrainSymbol(Graphics g, int x, int y, char symbol, Color color) {
         g.setColor(color);
         g.fillRect(x, y, GameConstants.TILE_SIZE, GameConstants.TILE_SIZE);
@@ -777,22 +706,13 @@ public long getWorldSeed() {
             if (rabbitScreenX >= -GameConstants.TILE_SIZE && 
                 rabbitScreenX < GameConstants.SCREEN_WIDTH &&
                 rabbitScreenY >= -GameConstants.TILE_SIZE && 
-                rabbitScreenY < GameConstants.SCREEN_HEIGHT - 100) {
+                rabbitScreenY < GameConstants.SCREEN_HEIGHT - GameConstants.UI_PANEL_HEIGHT) {
                 
                 drawRabbit(g, (int) rabbitScreenX, (int) rabbitScreenY, rabbit);
             }
         }
+    }
     
-    }
-     public void setPlayerSpawnPosition(double x, double y) {
-        System.out.println("🎯 Установка позиции спавна: " + x + ", " + y);
-        
-        // Телепортируем игрока на указанную позицию
-        this.player = new Player((int)x, (int)y);
-        centerCameraOnPlayer();
-        
-        System.out.println("✅ Игрок перемещен на позицию: " + x + ", " + y);
-    }
     private void drawRabbit(Graphics g, int x, int y, Rabbit rabbit) {
         String textureName = "rabbit";
         
@@ -939,72 +859,66 @@ public long getWorldSeed() {
         }
     }
     
-    // ВКЛЮЧАЕМ метод отрисовки удаленных игроков
-private void drawRemotePlayers(Graphics g) {
-    for (MultiplayerPlayer remotePlayer : multiplayerManager.getRemotePlayers()) {
-        double remoteScreenX = (remotePlayer.getX() - cameraX) * GameConstants.TILE_SIZE;
-        double remoteScreenY = (remotePlayer.getY() - cameraY) * GameConstants.TILE_SIZE;
-        
-        // Проверяем, находится ли игрок в зоне видимости
-        if (remoteScreenX >= -GameConstants.TILE_SIZE && 
-            remoteScreenX < GameConstants.SCREEN_WIDTH &&
-            remoteScreenY >= -GameConstants.TILE_SIZE && 
-            remoteScreenY < GameConstants.SCREEN_HEIGHT - 100) {
+    private void drawRemotePlayers(Graphics g) {
+        for (MultiplayerPlayer remotePlayer : multiplayerManager.getRemotePlayers()) {
+            double remoteScreenX = (remotePlayer.getX() - cameraX) * GameConstants.TILE_SIZE;
+            double remoteScreenY = (remotePlayer.getY() - cameraY) * GameConstants.TILE_SIZE;
             
-            drawRemotePlayer(g, (int)remoteScreenX, (int)remoteScreenY, remotePlayer);
+            if (remoteScreenX >= -GameConstants.TILE_SIZE && 
+                remoteScreenX < GameConstants.SCREEN_WIDTH &&
+                remoteScreenY >= -GameConstants.TILE_SIZE && 
+                remoteScreenY < GameConstants.SCREEN_HEIGHT - GameConstants.UI_PANEL_HEIGHT) {
+                
+                drawRemotePlayer(g, (int)remoteScreenX, (int)remoteScreenY, remotePlayer);
+            }
         }
     }
-}
     
-    // ВКЛЮЧАЕМ метод отрисовки одного удаленного игрока
-private void drawRemotePlayer(Graphics g, int x, int y, MultiplayerPlayer remotePlayer) {
-    // Синий цвет для удаленных игроков
-    g.setColor(Color.CYAN);
-    g.fillOval(x + 2, y + 2, GameConstants.TILE_SIZE - 4, GameConstants.TILE_SIZE - 4);
-    
-    // Имя игрока
-    g.setColor(Color.WHITE);
-    g.setFont(new Font("Arial", Font.PLAIN, 10));
-    g.drawString(remotePlayer.getName(), x, y - 5);
-    
-    // Направление взгляда
-    g.setColor(Color.BLACK);
-    switch (remotePlayer.getDirection()) {
-        case GameConstants.DIRECTION_UP:
-            g.fillRect(x + GameConstants.TILE_SIZE/2 - 2, y + 4, 4, 8);
-            break;
-        case GameConstants.DIRECTION_DOWN:
-            g.fillRect(x + GameConstants.TILE_SIZE/2 - 2, y + GameConstants.TILE_SIZE - 12, 4, 8);
-            break;
-        case GameConstants.DIRECTION_LEFT:
-            g.fillRect(x + 4, y + GameConstants.TILE_SIZE/2 - 2, 8, 4);
-            break;
-        case GameConstants.DIRECTION_RIGHT:
-            g.fillRect(x + GameConstants.TILE_SIZE - 12, y + GameConstants.TILE_SIZE/2 - 2, 8, 4);
-            break;
+    private void drawRemotePlayer(Graphics g, int x, int y, MultiplayerPlayer remotePlayer) {
+        g.setColor(Color.CYAN);
+        g.fillOval(x + 2, y + 2, GameConstants.TILE_SIZE - 4, GameConstants.TILE_SIZE - 4);
+        
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Arial", Font.PLAIN, 10));
+        g.drawString(remotePlayer.getName(), x, y - 5);
+        
+        g.setColor(Color.BLACK);
+        switch (remotePlayer.getDirection()) {
+            case GameConstants.DIRECTION_UP:
+                g.fillRect(x + GameConstants.TILE_SIZE/2 - 2, y + 4, 4, 8);
+                break;
+            case GameConstants.DIRECTION_DOWN:
+                g.fillRect(x + GameConstants.TILE_SIZE/2 - 2, y + GameConstants.TILE_SIZE - 12, 4, 8);
+                break;
+            case GameConstants.DIRECTION_LEFT:
+                g.fillRect(x + 4, y + GameConstants.TILE_SIZE/2 - 2, 8, 4);
+                break;
+            case GameConstants.DIRECTION_RIGHT:
+                g.fillRect(x + GameConstants.TILE_SIZE - 12, y + GameConstants.TILE_SIZE/2 - 2, 8, 4);
+                break;
+        }
     }
-} // ЗАКРЫТИЕ МЕТОДА drawRe
-
-private void drawPlayerSymbol(Graphics g, int x, int y) {
-    g.setColor(Color.YELLOW);
-    g.fillOval(x + 2, y + 2, GameConstants.TILE_SIZE - 4, GameConstants.TILE_SIZE - 4);
     
-    g.setColor(Color.BLACK);
-    switch (player.getDirection()) {
-        case GameConstants.DIRECTION_UP:
-            g.fillRect(x + GameConstants.TILE_SIZE/2 - 2, y + 4, 4, 8);
-            break;
-        case GameConstants.DIRECTION_DOWN:
-            g.fillRect(x + GameConstants.TILE_SIZE/2 - 2, y + GameConstants.TILE_SIZE - 12, 4, 8);
-            break;
-        case GameConstants.DIRECTION_LEFT:
-            g.fillRect(x + 4, y + GameConstants.TILE_SIZE/2 - 2, 8, 4);
-            break;
-        case GameConstants.DIRECTION_RIGHT:
-            g.fillRect(x + GameConstants.TILE_SIZE - 12, y + GameConstants.TILE_SIZE/2 - 2, 8, 4);
-            break;
+    private void drawPlayerSymbol(Graphics g, int x, int y) {
+        g.setColor(Color.YELLOW);
+        g.fillOval(x + 2, y + 2, GameConstants.TILE_SIZE - 4, GameConstants.TILE_SIZE - 4);
+        
+        g.setColor(Color.BLACK);
+        switch (player.getDirection()) {
+            case GameConstants.DIRECTION_UP:
+                g.fillRect(x + GameConstants.TILE_SIZE/2 - 2, y + 4, 4, 8);
+                break;
+            case GameConstants.DIRECTION_DOWN:
+                g.fillRect(x + GameConstants.TILE_SIZE/2 - 2, y + GameConstants.TILE_SIZE - 12, 4, 8);
+                break;
+            case GameConstants.DIRECTION_LEFT:
+                g.fillRect(x + 4, y + GameConstants.TILE_SIZE/2 - 2, 8, 4);
+                break;
+            case GameConstants.DIRECTION_RIGHT:
+                g.fillRect(x + GameConstants.TILE_SIZE - 12, y + GameConstants.TILE_SIZE/2 - 2, 8, 4);
+                break;
+        }
     }
-} // ЗАКРЫТИЕ МЕТОДА drawPlayerSymbol
     
     private String getPlayerTextureByDirection() {
         switch (player.getDirection()) {
@@ -1020,55 +934,244 @@ private void drawPlayerSymbol(Graphics g, int x, int y) {
         }
     }
     
-    private void drawStatusPanel(Graphics g) {
-        int panelY = GameConstants.SCREEN_HEIGHT - 100;
+    // ============ УЛУЧШЕННЫЙ ИНТЕРФЕЙС ============
+    
+    private void drawGameUI(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g;
         
-       g.setColor(Color.BLUE);
-    g.fillRect(0, panelY, GameConstants.SCREEN_WIDTH, 100);
-    
-    g.setColor(Color.WHITE);
-    g.setFont(new Font("Arial", Font.PLAIN, 14));
-    
-    drawHealthBar(g, 20, panelY + 20);
-    drawHungerBar(g, 20, panelY + 45);
-    
-    g.drawString("Позиция: X=" + String.format("%.1f", player.getExactX()) + 
-                " Y=" + String.format("%.1f", player.getExactY()), 200, panelY + 25);
-    
-    String biomeName = "Неизвестно";
-    if (player.getY() >= 0 && player.getY() < GameConstants.MAP_HEIGHT && 
-        player.getX() >= 0 && player.getX() < GameConstants.MAP_WIDTH) {
-        int biome = biomes[player.getY()][player.getX()];
-        biomeName = (biome == 0) ? "Луг" : "Лес";
-    }
-    g.drawString("Биом: " + biomeName, 200, panelY + 45);
-    
-    g.drawString("Уровень: " + player.getLevel(), 200, panelY + 65);
-    g.drawString("Опыт: " + player.getExperience(), 200, panelY + 85);
-    
-    int visibleRabbits = countVisibleRabbits();
-    g.drawString("Кролики рядом: " + visibleRabbits, 400, panelY + 25);
-    
-    String moveMode = shiftPressed ? "БЕГ (2x голод)" : "ХОДЬБА";
-    g.drawString("Режим: " + moveMode, 400, panelY + 45);
-    
-    drawSelectedItem(g, 400, panelY + 65);
-    
-    // Информация о мультиплеере
-    if (isMultiplayer) {
-        String multiplayerInfo = multiplayerManager.isServer() ? 
-            "ХОСТ (" + (multiplayerManager.getRemotePlayers().size() + 1) + " игроков)" : 
-            "КЛИЕНТ";
-        g.drawString("Мультиплеер: " + multiplayerInfo, 400, panelY + 85);
-    } else {
-        g.drawString("WASD - движение", 400, panelY + 85);
+        // Включаем сглаживание для красивого интерфейса
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        
+        int panelY = GameConstants.SCREEN_HEIGHT - GameConstants.UI_PANEL_HEIGHT;
+        
+        // Фон панели интерфейса
+        drawUIPanelBackground(g2d, panelY);
+        
+        // Разделяем интерфейс на три колонки
+        int col1X = GameConstants.UI_MARGIN;
+        int col2X = GameConstants.SCREEN_WIDTH / 3;
+        int col3X = (GameConstants.SCREEN_WIDTH * 2) / 3;
+        
+        int currentY = panelY + GameConstants.UI_MARGIN;
+        
+        // Колонка 1: Основные показатели (здоровье, голод, опыт)
+        drawPlayerStats(g2d, col1X, currentY);
+        
+        // Колонка 2: Информация о мире и позиции
+        drawWorldInfo(g2d, col2X, currentY);
+        
+        // Колонка 3: Инвентарь и мультиплеер
+        drawInventoryAndMultiplayer(g2d, col3X, currentY);
+        
+        // Горячие клавиши (хотбар) - рисуем над панелью интерфейса
+        drawModernHotbar(g2d, panelY - 50);
     }
     
-    g.drawString("ЛКМ/ПРОБЕЛ - атака", 400, panelY + 105);
-    g.drawString("ESC - меню", 550, panelY + 105);
+    private void drawUIPanelBackground(Graphics2D g2d, int panelY) {
+        // Основной фон панели
+        g2d.setColor(GameConstants.UI_BACKGROUND);
+        g2d.fillRoundRect(0, panelY, 
+                         GameConstants.SCREEN_WIDTH, GameConstants.UI_PANEL_HEIGHT, 
+                         20, 20);
+        
+        // Граница панели
+        g2d.setColor(GameConstants.UI_BORDER);
+        g2d.setStroke(new BasicStroke(2));
+        g2d.drawRoundRect(2, panelY + 2, 
+                         GameConstants.SCREEN_WIDTH - 4, GameConstants.UI_PANEL_HEIGHT - 4, 
+                         18, 18);
+        
+        // Разделительные линии между колонками
+        g2d.setColor(new Color(80, 80, 120, 100));
+        g2d.drawLine(GameConstants.SCREEN_WIDTH / 3, panelY + 10, 
+                    GameConstants.SCREEN_WIDTH / 3, panelY + GameConstants.UI_PANEL_HEIGHT - 10);
+        g2d.drawLine((GameConstants.SCREEN_WIDTH * 2) / 3, panelY + 10, 
+                    (GameConstants.SCREEN_WIDTH * 2) / 3, panelY + GameConstants.UI_PANEL_HEIGHT - 10);
+    }
     
-    drawHotbar(g);
-}
+    private void drawPlayerStats(Graphics2D g2d, int x, int y) {
+        // Заголовок колонки
+        drawSectionHeader(g2d, x, y, "СТАТУС ПЕРСОНАЖА");
+        y += 25;
+        
+        // Здоровье
+        drawStatBar(g2d, x, y, "❤️ ЗДОРОВЬЕ", 
+                   player.getHealth(), GameConstants.PLAYER_MAX_HEALTH,
+                   GameConstants.HEALTH_COLOR, GameConstants.HEALTH_BG_COLOR);
+        y += GameConstants.UI_ELEMENT_HEIGHT + 5;
+        
+        // Голод
+        drawStatBar(g2d, x, y, "🍖 СЫТОСТЬ", 
+                   player.getHunger(), GameConstants.MAX_HUNGER,
+                   GameConstants.HUNGER_COLOR, GameConstants.HUNGER_BG_COLOR);
+        y += GameConstants.UI_ELEMENT_HEIGHT + 5;
+        
+        // Уровень и опыт
+        drawLevelAndExp(g2d, x, y);
+    }
+    
+    private void drawWorldInfo(Graphics2D g2d, int x, int y) {
+        // Заголовок колонки
+        drawSectionHeader(g2d, x, y, "ИНФОРМАЦИЯ О МИРЕ");
+        y += 25;
+        
+        // Координаты
+        drawInfoText(g2d, x, y, "📍 КООРДИНАТЫ:", 
+                    String.format("X: %.1f, Y: %.1f", player.getExactX(), player.getExactY()));
+        y += GameConstants.UI_ELEMENT_HEIGHT;
+        
+        // Биом
+        String biomeName = getCurrentBiomeName();
+        drawInfoText(g2d, x, y, "🌿 БИОМ:", biomeName);
+        y += GameConstants.UI_ELEMENT_HEIGHT;
+        
+      
+        
+        // Кролики поблизости
+        int visibleRabbits = countVisibleRabbits();
+        drawInfoText(g2d, x, y, "🐇 КРОЛИКИ РЯДОМ:", String.valueOf(visibleRabbits));
+    }
+    
+    private void drawInventoryAndMultiplayer(Graphics2D g2d, int x, int y) {
+        // Заголовок колонки
+        drawSectionHeader(g2d, x, y, "ИНВЕНТАРЬ И СЕТЬ");
+        y += 25;
+        
+        // Выбранный предмет
+        String selectedItem = inventoryPanel.getSelectedItemName();
+        drawInfoText(g2d, x, y, "🎒 ВЫБРАНО:", selectedItem);
+        y += GameConstants.UI_ELEMENT_HEIGHT;
+        
+        // Слот инвентаря
+        drawInfoText(g2d, x, y, "🔢 СЛОТ:", 
+                    String.valueOf(inventoryPanel.getSelectedSlot() + 1) + "/" + 
+                    (GameConstants.INVENTORY_ROWS * GameConstants.INVENTORY_COLS));
+        y += GameConstants.UI_ELEMENT_HEIGHT;
+        
+        // Мультиплеер
+        String multiplayerStatus = isMultiplayer ? 
+            (multiplayerManager.isServer() ? "⚡ ХОСТ" : "🔗 КЛИЕНТ") : "🔌 ОДИНОЧНАЯ";
+        drawInfoText(g2d, x, y, "🌐 РЕЖИМ:", multiplayerStatus);
+        y += GameConstants.UI_ELEMENT_HEIGHT;
+        
+        // Кол-во игроков в мультиплеере
+        if (isMultiplayer) {
+            int playerCount = multiplayerManager.getRemotePlayers().size() + 1;
+            drawInfoText(g2d, x, y, "👥 ИГРОКОВ:", playerCount + " в сети");
+        }
+    }
+    
+    private void drawModernHotbar(Graphics2D g2d, int y) {
+        int hotbarWidth = GameConstants.INVENTORY_COLS * 50;
+        int startX = (GameConstants.SCREEN_WIDTH - hotbarWidth) / 2;
+        
+        // Фон хотбара
+        g2d.setColor(new Color(40, 40, 60, 220));
+        g2d.fillRoundRect(startX - 10, y - 10, hotbarWidth + 20, 60, 15, 15);
+        
+        // Граница хотбара
+        g2d.setColor(new Color(100, 100, 150));
+        g2d.setStroke(new BasicStroke(2));
+        g2d.drawRoundRect(startX - 10, y - 10, hotbarWidth + 20, 60, 15, 15);
+        
+        // Слоты хотбара
+        for (int i = 0; i < GameConstants.INVENTORY_COLS; i++) {
+            int slotX = startX + i * 50;
+            
+            // Фон слота
+            if (i == inventoryPanel.getSelectedSlot()) {
+                g2d.setColor(new Color(100, 150, 255, 150));
+                g2d.fillRoundRect(slotX, y, 45, 45, 10, 10);
+                g2d.setColor(new Color(200, 220, 255));
+            } else {
+                g2d.setColor(new Color(80, 80, 100));
+                g2d.fillRoundRect(slotX, y, 45, 45, 10, 10);
+                g2d.setColor(new Color(140, 140, 160));
+            }
+            
+            g2d.drawRoundRect(slotX, y, 45, 45, 10, 10);
+            
+            // Предмет в слоте
+            drawHotbarItem(g2d, slotX, y, i);
+            
+            // Номер слота
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(new Font("Arial", Font.BOLD, 11));
+            g2d.drawString(String.valueOf(i + 1), slotX + 5, y + 15);
+        }
+    }
+    
+    // Вспомогательные методы отрисовки интерфейса
+    private void drawSectionHeader(Graphics2D g2d, int x, int y, String text) {
+        g2d.setColor(GameConstants.LABEL_COLOR);
+        g2d.setFont(new Font("Arial", Font.BOLD, 14));
+        g2d.drawString(text, x, y);
+    }
+    
+    private void drawStatBar(Graphics2D g2d, int x, int y, String label, 
+                           int current, int max, Color fillColor, Color bgColor) {
+        // Метка
+        g2d.setColor(GameConstants.LABEL_COLOR);
+        g2d.setFont(new Font("Arial", Font.BOLD, 12));
+        g2d.drawString(label, x, y + 15);
+        
+        // Фон бара
+        g2d.setColor(bgColor);
+        g2d.fillRoundRect(x + 120, y, GameConstants.UI_BAR_WIDTH, GameConstants.UI_BAR_HEIGHT, 10, 10);
+        
+        // Заполненная часть
+        double percentage = (double) current / max;
+        int filledWidth = (int) (GameConstants.UI_BAR_WIDTH * percentage);
+        
+        if (filledWidth > 0) {
+            g2d.setColor(fillColor);
+            g2d.fillRoundRect(x + 120, y, filledWidth, GameConstants.UI_BAR_HEIGHT, 10, 10);
+        }
+        
+        // Граница
+        g2d.setColor(new Color(40, 40, 40));
+        g2d.drawRoundRect(x + 120, y, GameConstants.UI_BAR_WIDTH, GameConstants.UI_BAR_HEIGHT, 10, 10);
+        
+        // Текст значения
+        g2d.setColor(GameConstants.TEXT_COLOR);
+        g2d.setFont(new Font("Arial", Font.BOLD, 11));
+        String valueText = current + " / " + max;
+        int textWidth = g2d.getFontMetrics().stringWidth(valueText);
+        g2d.drawString(valueText, x + 120 + (GameConstants.UI_BAR_WIDTH - textWidth) / 2, y + 14);
+    }
+    
+    private void drawLevelAndExp(Graphics2D g2d, int x, int y) {
+        g2d.setColor(GameConstants.LABEL_COLOR);
+        g2d.setFont(new Font("Arial", Font.BOLD, 12));
+        g2d.drawString("⭐ УРОВЕНЬ " + player.getLevel(), x, y + 15);
+        
+        g2d.setColor(GameConstants.TEXT_COLOR);
+        g2d.setFont(new Font("Arial", Font.PLAIN, 11));
+        g2d.drawString("Опыт: " + player.getExperience(), x + 120, y + 15);
+    }
+    
+    private void drawInfoText(Graphics2D g2d, int x, int y, String label, String value) {
+        g2d.setColor(GameConstants.LABEL_COLOR);
+        g2d.setFont(new Font("Arial", Font.BOLD, 12));
+        g2d.drawString(label, x, y + 15);
+        
+        g2d.setColor(GameConstants.TEXT_COLOR);
+        g2d.setFont(new Font("Arial", Font.PLAIN, 12));
+        g2d.drawString(value, x + 120, y + 15);
+    }
+    
+    private String getCurrentBiomeName() {
+        int playerX = player.getX();
+        int playerY = player.getY();
+        
+        if (playerY >= 0 && playerY < GameConstants.MAP_HEIGHT && 
+            playerX >= 0 && playerX < GameConstants.MAP_WIDTH) {
+            int biome = biomes[playerY][playerX];
+            return (biome == 0) ? "Луг" : "Лес";
+        }
+        return "Неизвестно";
+    }
     
     private int countVisibleRabbits() {
         int count = 0;
@@ -1086,98 +1189,7 @@ private void drawPlayerSymbol(Graphics g, int x, int y) {
         return count;
     }
     
-    private void drawHealthBar(Graphics g, int x, int y) {
-        g.setColor(Color.WHITE);
-        g.drawString("Здоровье:", x, y);
-        
-        int heartSize = 10;
-        int spacing = 2;
-        int startX = x + 80;
-        
-        for (int i = 0; i < 20; i++) {
-            int heartX = startX + i * (heartSize + spacing);
-            
-            if (player.getHealth() >= (i + 1) * 5) {
-                g.setColor(GameConstants.HEALTH_COLOR);
-                g.fillRect(heartX, y - heartSize, heartSize, heartSize);
-            } else if (player.getHealth() > i * 5) {
-                g.setColor(GameConstants.HEALTH_COLOR);
-                int partialWidth = (int)((player.getHealth() - i * 5) / 5.0 * heartSize);
-                g.fillRect(heartX, y - heartSize, partialWidth, heartSize);
-                g.setColor(Color.GRAY);
-                g.fillRect(heartX + partialWidth, y - heartSize, heartSize - partialWidth, heartSize);
-            } else {
-                g.setColor(Color.GRAY);
-                g.fillRect(heartX, y - heartSize, heartSize, heartSize);
-            }
-            
-            g.setColor(Color.BLACK);
-            g.drawRect(heartX, y - heartSize, heartSize, heartSize);
-        }
-        
-        g.setColor(Color.WHITE);
-        g.drawString(player.getHealth() + "/100", startX + 20 * (heartSize + spacing) + 10, y);
-    }
-    
-    private void drawHungerBar(Graphics g, int x, int y) {
-        g.setColor(Color.WHITE);
-        g.drawString("Голод:", x, y);
-        
-        int foodSize = 10;
-        int spacing = 2;
-        int startX = x + 80;
-        
-        for (int i = 0; i < GameConstants.MAX_HUNGER / 2; i++) {
-            int foodX = startX + i * (foodSize + spacing);
-            
-            if (player.getHunger() >= (i + 1) * 2) {
-                g.setColor(GameConstants.HUNGER_COLOR);
-                g.fillRect(foodX, y - foodSize, foodSize, foodSize);
-            } else if (player.getHunger() >= i * 2 + 1) {
-                g.setColor(GameConstants.HUNGER_COLOR);
-                g.fillRect(foodX, y - foodSize, foodSize / 2, foodSize);
-                g.setColor(Color.GRAY);
-                g.fillRect(foodX + foodSize / 2, y - foodSize, foodSize / 2, foodSize);
-            } else {
-                g.setColor(Color.GRAY);
-                g.fillRect(foodX, y - foodSize, foodSize, foodSize);
-            }
-            
-            g.setColor(Color.BLACK);
-            g.drawRect(foodX, y - foodSize, foodSize, foodSize);
-        }
-    }
-    
-    private void drawHotbar(Graphics g) {
-        int hotbarWidth = GameConstants.INVENTORY_COLS * GameConstants.INVENTORY_SLOT_SIZE;
-        int startX = (GameConstants.SCREEN_WIDTH - hotbarWidth) / 2;
-        int y = GameConstants.SCREEN_HEIGHT - 100 - 40;
-        
-        g.setColor(new Color(30, 30, 30, 200));
-        g.fillRect(startX - 5, y - 5, hotbarWidth + 10, GameConstants.INVENTORY_SLOT_SIZE + 10);
-        
-        for (int i = 0; i < GameConstants.INVENTORY_COLS; i++) {
-            int slotX = startX + i * GameConstants.INVENTORY_SLOT_SIZE;
-            
-            g.setColor(new Color(100, 100, 100));
-            g.fillRect(slotX, y, GameConstants.INVENTORY_SLOT_SIZE, GameConstants.INVENTORY_SLOT_SIZE);
-            
-            if (i == inventoryPanel.getSelectedSlot()) {
-                g.setColor(Color.YELLOW);
-            } else {
-                g.setColor(Color.GRAY);
-            }
-            g.drawRect(slotX, y, GameConstants.INVENTORY_SLOT_SIZE, GameConstants.INVENTORY_SLOT_SIZE);
-            
-            drawHotbarItem(g, slotX, y, i);
-            
-            g.setColor(Color.WHITE);
-            g.setFont(new Font("Arial", Font.BOLD, 12));
-            g.drawString(String.valueOf(i + 1), slotX + 5, y + 15);
-        }
-    }
-    
-    private void drawHotbarItem(Graphics g, int slotX, int slotY, int slotIndex) {
+    private void drawHotbarItem(Graphics2D g2d, int slotX, int slotY, int slotIndex) {
         int row = slotIndex / GameConstants.INVENTORY_COLS;
         int col = slotIndex % GameConstants.INVENTORY_COLS;
         int itemId = inventoryPanel.inventory[row][col];
@@ -1189,11 +1201,11 @@ private void drawPlayerSymbol(Graphics g, int x, int y) {
                 try {
                     BufferedImage texture = TextureManager.getInstance().getTexture(textureName);
                     if (texture != null) {
-                        int textureSize = GameConstants.INVENTORY_SLOT_SIZE - 8;
-                        int textureX = slotX + (GameConstants.INVENTORY_SLOT_SIZE - textureSize) / 2;
-                        int textureY = slotY + (GameConstants.INVENTORY_SLOT_SIZE - textureSize) / 2;
+                        int textureSize = 35;
+                        int textureX = slotX + (45 - textureSize) / 2;
+                        int textureY = slotY + (45 - textureSize) / 2;
                         
-                        g.drawImage(texture, textureX, textureY, textureSize, textureSize, null);
+                        g2d.drawImage(texture, textureX, textureY, textureSize, textureSize, null);
                         return;
                     }
                 } catch (Exception e) {
@@ -1201,56 +1213,11 @@ private void drawPlayerSymbol(Graphics g, int x, int y) {
                 }
             }
             
-            g.setColor(Color.BLUE);
-            int itemSize = GameConstants.INVENTORY_SLOT_SIZE - 8;
-            int itemX = slotX + (GameConstants.INVENTORY_SLOT_SIZE - itemSize) / 2;
-            int itemY = slotY + (GameConstants.INVENTORY_SLOT_SIZE - itemSize) / 2;
-            g.fillRect(itemX, itemY, itemSize, itemSize);
-        }
-    }
-    
-    private void drawSelectedItem(Graphics g, int x, int y) {
-        g.setColor(Color.WHITE);
-        g.drawString("Выбран:", x, y);
-        
-        int selectedSlot = inventoryPanel.getSelectedSlot();
-        int row = selectedSlot / GameConstants.INVENTORY_COLS;
-        int col = selectedSlot % GameConstants.INVENTORY_COLS;
-        int itemId = inventoryPanel.inventory[row][col];
-        
-        if (itemId > 0 && itemId <= GameConstants.ITEM_NAMES.length) {
-            String itemName = GameConstants.ITEM_NAMES[itemId - 1];
-            String textureName = GameConstants.getTextureName(itemId);
-            
-            int textureSize = 32;
-            int textureX = x + 80;
-            int textureY = y - 25;
-            
-            if (textureName != null) {
-                try {
-                    BufferedImage texture = TextureManager.getInstance().getTexture(textureName);
-                    if (texture != null) {
-                        g.drawImage(texture, textureX, textureY, textureSize, textureSize, null);
-                        
-                        g.setColor(Color.WHITE);
-                        g.setFont(new Font("Arial", Font.BOLD, 12));
-                        g.drawString(itemName, textureX, textureY + textureSize + 15);
-                        return;
-                    }
-                } catch (Exception e) {
-                    System.out.println("Ошибка рисования текстуры выбранного предмета: " + e.getMessage());
-                }
-            }
-            
-            g.setColor(Color.BLUE);
-            g.fillRect(textureX, textureY, textureSize, textureSize);
-            
-            g.setColor(Color.WHITE);
-            g.setFont(new Font("Arial", Font.BOLD, 12));
-            g.drawString(itemName, textureX, textureY + textureSize + 15);
-        } else {
-            g.setColor(Color.GRAY);
-            g.drawString("Пусто", x + 80, y);
+            g2d.setColor(Color.BLUE);
+            int itemSize = 35;
+            int itemX = slotX + (45 - itemSize) / 2;
+            int itemY = slotY + (45 - itemSize) / 2;
+            g2d.fillRect(itemX, itemY, itemSize, itemSize);
         }
     }
     
@@ -1272,6 +1239,8 @@ private void drawPlayerSymbol(Graphics g, int x, int y) {
                     GameConstants.SCREEN_WIDTH / 2 - 150, 
                     GameConstants.SCREEN_HEIGHT - 30);
     }
+    
+    // ============ УПРАВЛЕНИЕ ============
     
     @Override
     public void keyPressed(KeyEvent e) {
@@ -1391,15 +1360,73 @@ private void drawPlayerSymbol(Graphics g, int x, int y) {
     @Override
     public void keyTyped(KeyEvent e) {}
     
-    // Геттер для мультиплеер менеджера (может понадобиться)
+    // ============ ГЕТТЕРЫ И СЕТТЕРЫ ============
+    
+    public void setWorldSeed(long seed) {
+        this.worldSeed = seed;
+        System.out.println("🌍 Установлен сид мира: " + seed);
+        regenerateWorld();
+    }
+    
+    public long getWorldSeed() {
+        return worldSeed;
+    }
+    
+    private void regenerateWorld() {
+        System.out.println("🔄 Перегенерация мира с сидом: " + worldSeed);
+        
+        double oldX = player.getExactX();
+        double oldY = player.getExactY();
+        
+        generateWorld();
+        generateRabbits();
+        
+        player = new Player((int)oldX, (int)oldY);
+        centerCameraOnPlayer();
+        
+        System.out.println("✅ Мир перегенерирован, игрок на позиции: " + oldX + ", " + oldY);
+    }
+    
+    public void regenerateWorldWithSeed(long seed) {
+        this.worldSeed = seed;
+        regenerateWorld();
+    }
+    
+    public void setPlayerSpawnPosition(double x, double y) {
+        System.out.println("🎯 Установка позиции спавна: " + x + ", " + y);
+        
+        this.player = new Player((int)x, (int)y);
+        centerCameraOnPlayer();
+        
+        System.out.println("✅ Игрок перемещен на позицию: " + x + ", " + y);
+    }
+    
+    public boolean isValidSpawnPosition(int x, int y) {
+        if (x < 0 || x >= GameConstants.MAP_WIDTH || y < 0 || y >= GameConstants.MAP_HEIGHT) {
+            return false;
+        }
+        
+        char terrain = map[y][x];
+        return terrain != GameConstants.WATER && terrain != GameConstants.TREE;
+    }
+    
+    public double getPlayerX() {
+        return player.getExactX();
+    }
+    
+    public double getPlayerY() {
+        return player.getExactY();
+    }
+    
     public MultiplayerManager getMultiplayerManager() {
         return multiplayerManager;
     }
     
     public boolean isMultiplayer() {
         return isMultiplayer;
-    
     }
-
     
+    public boolean startMultiplayerGame(boolean createGame) {
+        return startMultiplayerGame(createGame, "localhost");
+    }
 }
