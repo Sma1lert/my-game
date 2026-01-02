@@ -1,3 +1,4 @@
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -11,9 +12,15 @@ public class NetworkManager {
     private MultiplayerManager multiplayerManager;
     private GamePanel gamePanel;
     
+    // Для приема больших сохранений
+    private Map<Integer, StringBuilder> saveDataBuffers;
+    private Map<Integer, Integer> expectedChunks;
+    
     public NetworkManager(MultiplayerManager multiplayerManager) {
         this.multiplayerManager = multiplayerManager;
         clients = new ArrayList<>();
+        saveDataBuffers = new HashMap<>();
+        expectedChunks = new HashMap<>();
     }
     
     public void setGamePanel(GamePanel gamePanel) {
@@ -198,6 +205,11 @@ class ClientHandler implements Runnable {
     private MultiplayerManager multiplayerManager;
     private int playerId;
     
+    // Для сборки больших сохранений
+    private StringBuilder saveDataBuffer;
+    private int expectedSaveChunks = 0;
+    private int receivedSaveChunks = 0;
+    
     public ClientHandler(Socket socket, boolean isServerSide, MultiplayerManager multiplayerManager) {
         this.socket = socket;
         this.isServerSide = isServerSide;
@@ -230,73 +242,139 @@ class ClientHandler implements Runnable {
         if (multiplayerManager == null) return;
         
         if (message.startsWith("PLAYER_UPDATE:")) {
-            String[] parts = message.split(":");
-            if (parts.length >= 5) {
-                try {
-                    int playerId = Integer.parseInt(parts[1]);
-                    
-                    // ИСПРАВЛЕНИЕ: Заменяем запятые на точки для корректного парсинга
-                    String xStr = parts[2].replace(',', '.');
-                    String yStr = parts[3].replace(',', '.');
-                    
-                    double x = Double.parseDouble(xStr);
-                    double y = Double.parseDouble(yStr);
-                    int direction = Integer.parseInt(parts[4]);
-                    
-                    multiplayerManager.updateRemotePlayer(playerId, x, y, direction);
-                    System.out.println("🔄 Обработка позиции игрока " + playerId + ": " + x + ", " + y);
-                } catch (NumberFormatException e) {
-                    System.out.println("❌ Ошибка парсинга PLAYER_UPDATE: " + e.getMessage());
-                }
-            }
+            handlePlayerUpdate(message);
         } else if (message.startsWith("PLAYER_ASSIGN:")) {
-            // ОБНОВЛЕНО: Теперь получаем ID, позицию спавна и СИД МИРА
-            String[] parts = message.split(":");
-            if (parts.length >= 5) {
-                try {
-                    this.playerId = Integer.parseInt(parts[1]);
-                    String xStr = parts[2].replace(',', '.');
-                    String yStr = parts[3].replace(',', '.');
-                    String seedStr = parts[4].replace(',', '.');
-                    
-                    double spawnX = Double.parseDouble(xStr);
-                    double spawnY = Double.parseDouble(yStr);
-                    long worldSeed = Long.parseLong(seedStr);
-                    
-                    System.out.println("🎮 Назначен ID игрока: " + playerId + 
-                                     " с позицией спавна: " + spawnX + ", " + spawnY +
-                                     " и сидом мира: " + worldSeed);
-                    
-                    // Устанавливаем позицию спавна и СИД МИРА для этого игрока
-                    if (multiplayerManager.getGamePanel() != null) {
-                        multiplayerManager.getGamePanel().setPlayerSpawnPosition(spawnX, spawnY);
-                        multiplayerManager.getGamePanel().setWorldSeed(worldSeed);
-                    }
-                } catch (NumberFormatException e) {
-                    System.out.println("❌ Ошибка парсинга PLAYER_ASSIGN: " + e.getMessage());
-                }
-            }
+            handlePlayerAssign(message);
         } else if (message.startsWith("WORLD_SEED:")) {
-            // Отдельное сообщение с сидом мира (на случай если PLAYER_ASSIGN не прошел)
-            String[] parts = message.split(":");
-            if (parts.length >= 2) {
-                try {
-                    long worldSeed = Long.parseLong(parts[1]);
-                    System.out.println("🌍 Получен сид мира от хоста: " + worldSeed);
-                    
-                    // Устанавливаем сид мира на клиенте
-                    if (multiplayerManager.getGamePanel() != null) {
-                        multiplayerManager.getGamePanel().setWorldSeed(worldSeed);
-                    }
-                } catch (NumberFormatException e) {
-                    System.out.println("❌ Ошибка парсинга WORLD_SEED: " + e.getMessage());
-                }
-            }
+            handleWorldSeed(message);
+        } else if (message.startsWith("WORLD_SAVE_START:")) {
+            handleWorldSaveStart(message);
+        } else if (message.startsWith("WORLD_SAVE_CHUNK:")) {
+            handleWorldSaveChunk(message);
+        } else if (message.equals("WORLD_SAVE_END")) {
+            handleWorldSaveEnd();
         } else if (message.equals("PING")) {
             sendMessage("PONG");
             System.out.println("🏓 Ответ на ping");
         } else if (message.equals("PONG")) {
             System.out.println("🏓 Получен pong от игрока " + playerId);
+        }
+    }
+    
+    private void handlePlayerUpdate(String message) {
+        String[] parts = message.split(":");
+        if (parts.length >= 5) {
+            try {
+                int playerId = Integer.parseInt(parts[1]);
+                
+                // ИСПРАВЛЕНИЕ: Заменяем запятые на точки для корректного парсинга
+                String xStr = parts[2].replace(',', '.');
+                String yStr = parts[3].replace(',', '.');
+                
+                double x = Double.parseDouble(xStr);
+                double y = Double.parseDouble(yStr);
+                int direction = Integer.parseInt(parts[4]);
+                
+                multiplayerManager.updateRemotePlayer(playerId, x, y, direction);
+                System.out.println("🔄 Обработка позиции игрока " + playerId + ": " + x + ", " + y);
+            } catch (NumberFormatException e) {
+                System.out.println("❌ Ошибка парсинга PLAYER_UPDATE: " + e.getMessage());
+            }
+        }
+    }
+    
+    private void handlePlayerAssign(String message) {
+        String[] parts = message.split(":");
+        if (parts.length >= 5) {
+            try {
+                this.playerId = Integer.parseInt(parts[1]);
+                String xStr = parts[2].replace(',', '.');
+                String yStr = parts[3].replace(',', '.');
+                String seedStr = parts[4].replace(',', '.');
+                
+                double spawnX = Double.parseDouble(xStr);
+                double spawnY = Double.parseDouble(yStr);
+                long worldSeed = Long.parseLong(seedStr);
+                
+                System.out.println("🎮 Назначен ID игрока: " + playerId + 
+                                 " с позицией спавна: " + spawnX + ", " + spawnY +
+                                 " и сидом мира: " + worldSeed);
+                
+                // Устанавливаем позицию спавна и СИД МИРА для этого игрока
+                if (multiplayerManager.getGamePanel() != null) {
+                    multiplayerManager.getGamePanel().setPlayerSpawnPosition(spawnX, spawnY);
+                    multiplayerManager.getGamePanel().setWorldSeed(worldSeed);
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("❌ Ошибка парсинга PLAYER_ASSIGN: " + e.getMessage());
+            }
+        }
+    }
+    
+    private void handleWorldSeed(String message) {
+        String[] parts = message.split(":");
+        if (parts.length >= 2) {
+            try {
+                long worldSeed = Long.parseLong(parts[1]);
+                System.out.println("🌍 Получен сид мира от хоста: " + worldSeed);
+                
+                // Устанавливаем сид мира на клиенте
+                if (multiplayerManager.getGamePanel() != null) {
+                    multiplayerManager.getGamePanel().setWorldSeed(worldSeed);
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("❌ Ошибка парсинга WORLD_SEED: " + e.getMessage());
+            }
+        }
+    }
+    
+    private void handleWorldSaveStart(String message) {
+        String[] parts = message.split(":");
+        if (parts.length >= 2) {
+            try {
+                expectedSaveChunks = Integer.parseInt(parts[1]);
+                receivedSaveChunks = 0;
+                saveDataBuffer = new StringBuilder();
+                System.out.println("📥 Начало приема сохранения мира (частей: " + expectedSaveChunks + ")");
+            } catch (NumberFormatException e) {
+                System.out.println("❌ Ошибка парсинга WORLD_SAVE_START: " + e.getMessage());
+            }
+        }
+    }
+    
+    private void handleWorldSaveChunk(String message) {
+        String[] parts = message.split(":", 3);
+        if (parts.length >= 3) {
+            try {
+                int chunkIndex = Integer.parseInt(parts[1]);
+                String chunkData = parts[2];
+                
+                if (saveDataBuffer != null) {
+                    saveDataBuffer.append(chunkData);
+                    receivedSaveChunks++;
+                    System.out.println("📥 Получена часть сохранения " + (chunkIndex + 1) + "/" + expectedSaveChunks);
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("❌ Ошибка парсинга WORLD_SAVE_CHUNK: " + e.getMessage());
+            }
+        }
+    }
+    
+    private void handleWorldSaveEnd() {
+        if (saveDataBuffer != null && receivedSaveChunks == expectedSaveChunks) {
+            System.out.println("✅ Получено все сохранение мира (" + saveDataBuffer.length() + " байт)");
+            
+            // Импортируем сохранение
+            if (multiplayerManager.getGamePanel() != null) {
+                multiplayerManager.getGamePanel().importWorldState(saveDataBuffer.toString());
+            }
+            
+            // Очищаем буфер
+            saveDataBuffer = null;
+            expectedSaveChunks = 0;
+            receivedSaveChunks = 0;
+        } else {
+            System.out.println("❌ Не все части сохранения получены (" + receivedSaveChunks + "/" + expectedSaveChunks + ")");
         }
     }
     

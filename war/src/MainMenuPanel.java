@@ -1,3 +1,4 @@
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
@@ -6,6 +7,8 @@ public class MainMenuPanel extends JPanel {
     private JButton singlePlayerButton;
     private JButton createMultiplayerButton;
     private JButton joinMultiplayerButton;
+    private JButton saveButton;
+    private JButton loadButton;
     private JButton settingsButton;
     private JButton exitButton;
     private MainMenuListener listener;
@@ -14,14 +17,16 @@ public class MainMenuPanel extends JPanel {
         void onSinglePlayer();
         void onCreateMultiplayer();
         void onJoinMultiplayer();
+        void onSaveGame();
+        void onLoadGame();
         void onSettings();
         void onExit();
     }
     
     public MainMenuPanel() {
-        setLayout(new GridLayout(5, 1, 10, 10)); // Изменили на 5 строк для новых кнопок
+        setLayout(new GridLayout(7, 1, 10, 10));
         setBackground(new Color(10, 5, 20));
-        setBorder(BorderFactory.createEmptyBorder(100, 100, 100, 100));
+        setBorder(BorderFactory.createEmptyBorder(80, 100, 80, 100));
         initializeMenu();
     }
     
@@ -50,6 +55,20 @@ public class MainMenuPanel extends JPanel {
             if (listener != null) listener.onJoinMultiplayer();
         });
         add(joinMultiplayerButton);
+        
+        // Кнопка сохранения
+        saveButton = createMenuButton("СОХРАНИТЬ ИГРУ");
+        saveButton.addActionListener(e -> {
+            if (listener != null) listener.onSaveGame();
+        });
+        add(saveButton);
+        
+        // Кнопка загрузки
+        loadButton = createMenuButton("ЗАГРУЗИТЬ ИГРУ");
+        loadButton.addActionListener(e -> {
+            if (listener != null) listener.onLoadGame();
+        });
+        add(loadButton);
         
         // Кнопка настроек
         settingsButton = createMenuButton("НАСТРОЙКИ");

@@ -1,3 +1,4 @@
+
 import java.util.*;
 
 public class MultiplayerManager {
@@ -22,6 +23,7 @@ public class MultiplayerManager {
     public GamePanel getGamePanel() {
         return gamePanel;
     }
+    
     // Получение сетевого менеджера
     public NetworkManager getNetworkManager() {
         return network;
@@ -59,7 +61,6 @@ public class MultiplayerManager {
     
     public void updatePlayerPosition(double x, double y, int direction) {
         if (isMultiplayer) {
-            // Используем Locale.US для гарантии точки как разделителя
             String message = String.format(java.util.Locale.US, "PLAYER_UPDATE:%d:%.2f:%.2f:%d", 
                 localPlayerId, x, y, direction);
             network.broadcastMessage(message);
@@ -68,40 +69,90 @@ public class MultiplayerManager {
     }
     
     public void sendWorldSeed(long worldSeed) {
-    if (isMultiplayer) {
-        String message = "WORLD_SEED:" + worldSeed;
-        network.broadcastMessage(message);
-        System.out.println("🌍 Отправлен сид мира: " + worldSeed);
+        if (isMultiplayer) {
+            String message = "WORLD_SEED:" + worldSeed;
+            network.broadcastMessage(message);
+            System.out.println("🌍 Отправлен сид мира: " + worldSeed);
+        }
     }
-}
 
-// Отправка сида мира конкретному клиенту
-public void sendWorldSeedToClient(ClientHandler client, long worldSeed) {
-    if (isMultiplayer && client != null) {
-        String message = "WORLD_SEED:" + worldSeed;
-        network.sendToClient(client, message);
-        System.out.println("🌍 Отправлен сид мира клиенту " + client.getPlayerId() + ": " + worldSeed);
+    // Отправка сида мира конкретному клиенту
+    public void sendWorldSeedToClient(ClientHandler client, long worldSeed) {
+        if (isMultiplayer && client != null) {
+            String message = "WORLD_SEED:" + worldSeed;
+            network.sendToClient(client, message);
+            System.out.println("🌍 Отправлен сид мира клиенту " + client.getPlayerId() + ": " + worldSeed);
+        }
     }
-}
+    
+    // Отправка сохранения мира клиенту
+    public void sendWorldSave(ClientHandler client, String saveData) {
+        if (isMultiplayer && client != null) {
+            // Разделяем большие данные на части для надежной передачи
+            int chunkSize = 1000;
+            int totalChunks = (int) Math.ceil((double) saveData.length() / chunkSize);
+            
+            System.out.println("📦 Отправка сохранения клиенту " + client.getPlayerId() + 
+                             " (частей: " + totalChunks + ", размер: " + saveData.length() + ")");
+            
+            // Отправляем количество частей
+            client.sendMessage("WORLD_SAVE_START:" + totalChunks);
+            
+            // Отправляем части
+            for (int i = 0; i < totalChunks; i++) {
+                int start = i * chunkSize;
+                int end = Math.min(start + chunkSize, saveData.length());
+                String chunk = saveData.substring(start, end);
+                client.sendMessage("WORLD_SAVE_CHUNK:" + i + ":" + chunk);
+                
+                // Небольшая задержка между частями
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            
+            // Отправляем подтверждение завершения
+            client.sendMessage("WORLD_SAVE_END");
+            System.out.println("✅ Сохранение отправлено клиенту " + client.getPlayerId());
+        }
+    }
+    
+    // Отправка сохранения мира всем игрокам
+    public void sendWorldSaveToAll() {
+        if (isMultiplayer && gamePanel != null) {
+            String saveData = gamePanel.exportWorldState();
+            if (saveData != null) {
+                for (ClientHandler client : network.getClients()) {
+                    sendWorldSave(client, saveData);
+                }
+                System.out.println("💾 Сохранение отправлено всем игрокам");
+            }
+        }
+    }
     
     public void addRemotePlayer(int playerId, double x, double y) {
-    if (!remotePlayers.containsKey(playerId)) {
-        remotePlayers.put(playerId, new MultiplayerPlayer(playerId, x, y));
-        System.out.println("🎮 Добавлен удаленный игрок ID: " + playerId + " на позиции: " + x + ", " + y);
-        
-        // Отправляем сид мира новому игроку, если мы хост
-        if (isServer() && gamePanel != null) {
-            long worldSeed = gamePanel.getWorldSeed();
-            // Находим клиента по ID и отправляем ему сид
-            for (ClientHandler client : network.getClients()) {
-                if (client.getPlayerId() == playerId) {
-                    sendWorldSeedToClient(client, worldSeed);
-                    break;
+        if (!remotePlayers.containsKey(playerId)) {
+            remotePlayers.put(playerId, new MultiplayerPlayer(playerId, x, y));
+            System.out.println("🎮 Добавлен удаленный игрок ID: " + playerId + " на позиции: " + x + ", " + y);
+            
+            // Отправляем сид мира новому игроку, если мы хост
+            if (isServer() && gamePanel != null) {
+                long worldSeed = gamePanel.getWorldSeed();
+                // Находим клиента по ID и отправляем ему сид
+                for (ClientHandler client : network.getClients()) {
+                    if (client.getPlayerId() == playerId) {
+                        sendWorldSeedToClient(client, worldSeed);
+                        
+                        // Также отправляем полное сохранение мира для полной синхронизации
+                        sendWorldSave(client, gamePanel.exportWorldState());
+                        break;
+                    }
                 }
             }
         }
     }
-}
     
     public void updateRemotePlayer(int playerId, double x, double y, int direction) {
         MultiplayerPlayer player = remotePlayers.get(playerId);
@@ -170,6 +221,14 @@ public void sendWorldSeedToClient(ClientHandler client, long worldSeed) {
             System.out.println("   - Подключенных клиентов: " + network.getClients().size());
         } else {
             System.out.println("📡 Мультиплеер не активен");
+        }
+    }
+    
+    // Метод для синхронизации миров (вызывается хостами)
+    public void synchronizeWorlds() {
+        if (isServer() && gamePanel != null) {
+            System.out.println("🔄 Синхронизация миров всех игроков...");
+            sendWorldSaveToAll();
         }
     }
 }

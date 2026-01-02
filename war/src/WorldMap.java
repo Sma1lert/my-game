@@ -60,8 +60,17 @@ public class WorldMap {
     
     public boolean canMoveTo(int x, int y) {
         char terrain = getTerrainAt(x, y);
-        // Теперь можно ходить везде, кроме воды
-        return terrain != GameConstants.WATER;
+        // Теперь можно ходить везде, кроме воды и непроходимых структур
+        if (terrain == GameConstants.WATER) {
+            return false;
+        }
+        
+        // Проверяем проходимость структур
+        if (terrain == GameConstants.STONE || terrain == GameConstants.GLASS) {
+            return false; // Стены и стекло непроходимы
+        }
+        
+        return true;
     }
     
     public String getTerrainName(char terrain) {
@@ -73,6 +82,10 @@ public class WorldMap {
             case GameConstants.EMPTY: return "Пещера";
             case GameConstants.CAVE_ENTRANCE: return "Вход в пещеру";
             case GameConstants.ENEMY: return "Враг";
+            case GameConstants.STONE: return "Каменная стена";
+            case GameConstants.WOOD_PLANK: return "Деревянный пол";
+            case GameConstants.GLASS: return "Стеклянное окно";
+            case GameConstants.ROOFED: return "Крыша";
             default: return "Неизвестно";
         }
     }

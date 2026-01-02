@@ -1,5 +1,5 @@
 public class Player {
-    private double x; // Теперь double для дробных координат
+    private double x;
     private double y;
     private int health;
     private int hunger;
@@ -9,7 +9,7 @@ public class Player {
     
     private int moveCooldown = 0;
     private static final int MOVE_DELAY = 15;
-    private static final int RUN_MOVE_DELAY = 8; // Быстрее при беге
+    private static final int RUN_MOVE_DELAY = 8;
     private boolean isRunning = false;
     
     public Player(int startX, int startY) {
@@ -21,6 +21,18 @@ public class Player {
         this.level = GameConstants.STARTING_LEVEL;
         this.direction = GameConstants.DIRECTION_DOWN;
     }
+    
+    // Существующие методы...
+    
+    // СЕТТЕРЫ ДЛЯ СОХРАНЕНИЙ
+    public void setX(double x) { this.x = x; }
+    public void setY(double y) { this.y = y; }
+    public void setHealth(int health) { this.health = health; }
+    public void setHunger(int hunger) { this.hunger = hunger; }
+    public void setExperience(int experience) { this.experience = experience; }
+    public void setLevel(int level) { this.level = level; }
+    public void setDirection(int direction) { this.direction = direction; }
+    
     
     // Геттеры для целочисленных координат (для карты)
     public int getX() { return (int) Math.floor(x); }
@@ -60,10 +72,6 @@ public class Player {
                 decreaseHunger(1);
             }
         }
-    }
-    
-    public void setDirection(int newDirection) {
-        this.direction = newDirection;
     }
     
     // Методы для изменения состояния

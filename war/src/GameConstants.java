@@ -2,15 +2,14 @@ import java.awt.Color;
 
 public class GameConstants {
     // Размеры всей карты
- public static final int MAP_WIDTH = 1000;
+    public static final int MAP_WIDTH = 1000;
     public static final int MAP_HEIGHT = 1000;
 
-
-// В класс GameConstants добавьте:
-public static final double ATTACK_RANGE = 3.0; // Дальность атаки в тайлах
-public static final int ATTACK_DAMAGE = 5;     // Урон атаки
+    // В класс GameConstants добавьте:
+    public static final double ATTACK_RANGE = 3.0; // Дальность атаки в тайлах
+    public static final int ATTACK_DAMAGE = 5;     // Урон атаки
     
-// Система атаки
+    // Система атаки
     public static final int PLAYER_MAX_HEALTH = 100;
     public static final int RABBIT_HEALTH = 4;
     public static final int SWORD_DAMAGE = 5;
@@ -32,7 +31,14 @@ public static final int ATTACK_DAMAGE = 5;     // Урон атаки
     public static final char EMPTY = ' ';
     public static final char CAVE_ENTRANCE = 'C';
     public static final char ENEMY = 'E';
-     public static final Color UI_BACKGROUND = new Color(20, 20, 30, 220);
+    
+    // Новые типы terrain для структур
+    public static final char STONE = 'S';
+    public static final char WOOD_PLANK = 'P';
+    public static final char GLASS = 'G';
+    public static final char ROOFED = 'R'; // Тайлы с крышей
+    
+    public static final Color UI_BACKGROUND = new Color(20, 20, 30, 220);
     public static final Color UI_BORDER = new Color(80, 80, 120);
     public static final Color HEALTH_COLOR = new Color(220, 60, 60);
     public static final Color HEALTH_BG_COLOR = new Color(100, 30, 30);
@@ -72,6 +78,13 @@ public static final int ATTACK_DAMAGE = 5;     // Урон атаки
     public static final String TEXTURE_GRASS = "grass";
     public static final String TEXTURE_TREE = "tree";
     public static final String TEXTURE_WATER = "water";
+    
+    // Текстуры для структур
+    public static final String TEXTURE_STONE = "stone";
+    public static final String TEXTURE_WOOD_PLANK = "wood_plank";
+    public static final String TEXTURE_GLASS = "glass";
+    public static final String TEXTURE_ROOF = "roof"; // Текстура крыши
+    
     // ID предметов (только меч)
     public static final int ITEM_SWORD = 1;
     
@@ -107,6 +120,10 @@ public static final int ATTACK_DAMAGE = 5;     // Урон атаки
             case GRASS: return TEXTURE_GRASS;
             case TREE: return TEXTURE_TREE;
             case WATER: return TEXTURE_WATER;
+            case STONE: return TEXTURE_STONE;
+            case WOOD_PLANK: return TEXTURE_WOOD_PLANK;
+            case GLASS: return TEXTURE_GLASS;
+            case ROOFED: return TEXTURE_ROOF; // Крыша для тайлов с крышей
             default: return null;
         }
     }

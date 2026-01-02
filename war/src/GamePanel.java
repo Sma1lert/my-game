@@ -39,16 +39,26 @@ public class GamePanel extends JPanel implements KeyListener {
     private MultiplayerManager multiplayerManager;
     private boolean isMultiplayer = false;
     
+    // Генератор структур
+    private StructureGenerator structureGenerator;
+    
+    // Система сохранений
+    private SaveLoadManager saveManager;
+    
+    // Временное сообщение в игре
+    private String gameMessage = "";
+    private long messageDisplayTime = 0;
+    
     public GamePanel(GameWindow gameWindow) {
         this.gameWindow = gameWindow;
         this.multiplayerManager = new MultiplayerManager();
+        this.saveManager = new SaveLoadManager();
         
         setPreferredSize(new Dimension(
             GameConstants.SCREEN_WIDTH,
             GameConstants.SCREEN_HEIGHT
         ));
         setBackground(Color.BLACK);
-        setForeground(Color.WHITE);
         setFocusable(true);
         addKeyListener(this);
         this.multiplayerManager.setGamePanel(this);
@@ -96,6 +106,10 @@ public class GamePanel extends JPanel implements KeyListener {
         // Инициализируем сид (будет переопределен при мультиплеере)
         this.worldSeed = System.currentTimeMillis();
         
+        // Инициализируем генератор структур
+        structureGenerator = new StructureGenerator();
+        
+        // Генерируем мир после инициализации генератора структур
         generateWorld();
         generateRabbits();
         
@@ -107,6 +121,9 @@ public class GamePanel extends JPanel implements KeyListener {
         
         player = new Player(startX, startY);
         centerCameraOnPlayer();
+        
+        // Генерируем структуры (только один дом рядом с игроком) после создания игрока
+        structureGenerator.generateStructures(map, worldSeed, player.getX(), player.getY());
         
         TextureManager textureManager = TextureManager.getInstance();
         System.out.println("✅ TextureManager инициализирован");
@@ -127,6 +144,284 @@ public class GamePanel extends JPanel implements KeyListener {
         });
         
         System.out.println("🎮 Игрок создан в позиции: X=" + startX + " Y=" + startY);
+        System.out.println("🏠 Дом сгенерирован рядом с игроком");
+        System.out.println("💾 Менеджер сохранений инициализирован");
+    }
+    
+    // ============ СИСТЕМА СОХРАНЕНИЙ ============
+    
+    public void quickSave() {
+        String saveName = "quicksave_" + System.currentTimeMillis();
+        if (saveGame(saveName)) {
+            showGameMessage("Быстрое сохранение создано: " + saveName, 2000);
+        } else {
+            showGameMessage("Ошибка сохранения!", 2000);
+        }
+    }
+    
+    public void quickLoad() {
+        // Загружаем последнее быстрое сохранение
+        List<String> saves = saveManager.getSaveList();
+        String lastQuickSave = null;
+        long latestTime = 0;
+        
+        for (String save : saves) {
+            if (save.startsWith("quicksave_")) {
+                try {
+                    long saveTime = Long.parseLong(save.substring(9));
+                    if (saveTime > latestTime) {
+                        latestTime = saveTime;
+                        lastQuickSave = save;
+                    }
+                } catch (NumberFormatException e) {
+                    // Пропускаем некорректные имена
+                }
+            }
+        }
+        
+        if (lastQuickSave != null) {
+            if (loadGame(lastQuickSave)) {
+                showGameMessage("Быстрое сохранение загружено", 2000);
+            }
+        } else {
+            showGameMessage("Быстрое сохранение не найдено!", 2000);
+        }
+    }
+    
+    public boolean saveGame(String saveName) {
+        if (saveName == null || saveName.trim().isEmpty()) {
+            System.out.println("❌ Имя сохранения не может быть пустым");
+            return false;
+        }
+        
+        try {
+            GameSaveData saveData = new GameSaveData();
+            
+            // Данные игрока
+            saveData.setPlayerX(player.getExactX());
+            saveData.setPlayerY(player.getExactY());
+            saveData.setPlayerHealth(player.getHealth());
+            saveData.setPlayerHunger(player.getHunger());
+            saveData.setPlayerExperience(player.getExperience());
+            saveData.setPlayerLevel(player.getLevel());
+            saveData.setPlayerDirection(player.getDirection());
+            
+            // Данные мира
+            saveData.setWorldSeed(worldSeed);
+            
+            // Копируем данные карты
+            char[][] mapCopy = new char[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
+            for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
+                System.arraycopy(map[y], 0, mapCopy[y], 0, GameConstants.MAP_WIDTH);
+            }
+            saveData.setMapData(mapCopy);
+            
+            // Копируем данные биомов
+            int[][] biomeCopy = new int[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
+            for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
+                System.arraycopy(biomes[y], 0, biomeCopy[y], 0, GameConstants.MAP_WIDTH);
+            }
+            saveData.setBiomeData(biomeCopy);
+            
+            // Данные кроликов
+            List<RabbitSaveData> rabbitsData = new ArrayList<>();
+            for (Rabbit rabbit : rabbits) {
+                if (rabbit.isAlive()) {
+                    RabbitSaveData rabbitData = new RabbitSaveData();
+                    rabbitData.setX(rabbit.getX());
+                    rabbitData.setY(rabbit.getY());
+                    rabbitData.setHealth(rabbit.getHealth());
+                    rabbitsData.add(rabbitData);
+                }
+            }
+            saveData.setRabbitsData(rabbitsData);
+            
+            // Данные структур
+            if (structureGenerator != null) {
+                saveData.setHouseGenerated(structureGenerator.isHouseGenerated());
+                int[] housePos = structureGenerator.getHousePosition();
+                saveData.setHouseX(housePos[0]);
+                saveData.setHouseY(housePos[1]);
+            }
+            
+            // Мета-данные
+            saveData.setSaveName(saveName);
+            saveData.setSaveTimestamp(System.currentTimeMillis());
+            
+            // Сохраняем через SaveLoadManager
+            boolean success = saveManager.saveGame(saveData);
+            if (success) {
+                showGameMessage("Игра сохранена: " + saveName, 2000);
+            }
+            return success;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Ошибка сохранения игры: " + e.getMessage());
+            e.printStackTrace();
+            showGameMessage("Ошибка сохранения!", 2000);
+            return false;
+        }
+    }
+    
+    public boolean loadGame(String saveName) {
+        if (saveName == null || saveName.trim().isEmpty()) {
+            System.out.println("❌ Имя сохранения не может быть пустым");
+            showGameMessage("Ошибка загрузки: имя не указано", 2000);
+            return false;
+        }
+        
+        try {
+            GameSaveData saveData = saveManager.loadGame(saveName);
+            if (saveData == null) {
+                System.out.println("❌ Сохранение не найдено: " + saveName);
+                showGameMessage("Сохранение не найдено: " + saveName, 2000);
+                return false;
+            }
+            
+            // Останавливаем текущую игру
+            stopGame();
+            
+            // Восстанавливаем мир
+            this.worldSeed = saveData.getWorldSeed();
+            
+            // Восстанавливаем карту
+            char[][] loadedMap = saveData.getMapData();
+            if (loadedMap != null) {
+                for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
+                    System.arraycopy(loadedMap[y], 0, map[y], 0, GameConstants.MAP_WIDTH);
+                }
+            }
+            
+            // Восстанавливаем биомы
+            int[][] loadedBiomes = saveData.getBiomeData();
+            if (loadedBiomes != null) {
+                for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
+                    System.arraycopy(loadedBiomes[y], 0, biomes[y], 0, GameConstants.MAP_WIDTH);
+                }
+            }
+            
+            // Восстанавливаем игрока
+            double playerX = saveData.getPlayerX();
+            double playerY = saveData.getPlayerY();
+            this.player = new Player((int)playerX, (int)playerY);
+            player.setHealth(saveData.getPlayerHealth());
+            player.setHunger(saveData.getPlayerHunger());
+            player.setExperience(saveData.getPlayerExperience());
+            player.setLevel(saveData.getPlayerLevel());
+            player.setDirection(saveData.getPlayerDirection());
+            
+            // Восстанавливаем кроликов
+            this.rabbits.clear();
+            List<RabbitSaveData> rabbitsData = saveData.getRabbitsData();
+            if (rabbitsData != null) {
+                for (RabbitSaveData rabbitData : rabbitsData) {
+                    Rabbit rabbit = new Rabbit(rabbitData.getX(), rabbitData.getY());
+                    rabbit.setHealth(rabbitData.getHealth());
+                    rabbits.add(rabbit);
+                }
+            }
+            
+            // Восстанавливаем структуры
+            if (structureGenerator != null) {
+                structureGenerator.setHouseGenerated(saveData.isHouseGenerated());
+                structureGenerator.setHousePosition(saveData.getHouseX(), saveData.getHouseY());
+            }
+            
+            // Обновляем камеру
+            centerCameraOnPlayer();
+            
+            // Перезапускаем игру
+            startGame();
+            
+            System.out.println("✅ Игра загружена: " + saveName);
+            showGameMessage("Игра загружена: " + saveName, 2000);
+            return true;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Ошибка загрузки игры: " + e.getMessage());
+            e.printStackTrace();
+            showGameMessage("Ошибка загрузки игры!", 2000);
+            return false;
+        }
+    }
+    
+    // Метод для загрузки из объекта GameSaveData
+   public void loadFromSave(GameSaveData saveData) {
+    if (saveData == null) return;
+    
+    try {
+        // Восстанавливаем мир
+        this.worldSeed = saveData.getWorldSeed();
+        
+        // Восстанавливаем карту
+        char[][] loadedMap = saveData.getMapData();
+        if (loadedMap != null) {
+            for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
+                System.arraycopy(loadedMap[y], 0, map[y], 0, GameConstants.MAP_WIDTH);
+            }
+        }
+        
+        // Восстанавливаем биомы
+        int[][] loadedBiomes = saveData.getBiomeData();
+        if (loadedBiomes != null) {
+            for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
+                System.arraycopy(loadedBiomes[y], 0, biomes[y], 0, GameConstants.MAP_WIDTH);
+            }
+        }
+        
+        // Восстанавливаем игрока
+        double playerX = saveData.getPlayerX();
+        double playerY = saveData.getPlayerY();
+        
+        // Создаем нового игрока
+        this.player = new Player((int)playerX, (int)playerY);
+        player.setX(playerX);
+        player.setY(playerY);
+        player.setHealth(saveData.getPlayerHealth());
+        player.setHunger(saveData.getPlayerHunger());
+        player.setExperience(saveData.getPlayerExperience());
+        player.setLevel(saveData.getPlayerLevel());
+        player.setDirection(saveData.getPlayerDirection());
+        
+        // Восстанавливаем кроликов
+        this.rabbits.clear();
+        List<RabbitSaveData> rabbitsData = saveData.getRabbitsData();
+        if (rabbitsData != null) {
+            for (RabbitSaveData rabbitData : rabbitsData) {
+                Rabbit rabbit = new Rabbit(rabbitData.getX(), rabbitData.getY());
+                rabbit.setHealth(rabbitData.getHealth());
+                rabbits.add(rabbit);
+            }
+        }
+        
+        // Восстанавливаем структуры
+        if (structureGenerator != null) {
+            structureGenerator.setHouseGenerated(saveData.isHouseGenerated());
+            structureGenerator.setHousePosition(saveData.getHouseX(), saveData.getHouseY());
+        }
+        
+        // Обновляем камеру
+        centerCameraOnPlayer();
+        
+        System.out.println("✅ Игра загружена из объекта: " + saveData.getSaveName());
+        showGameMessage("Игра загружена: " + saveData.getSaveName(), 2000);
+        
+        // Если игра была запущена, перезапускаем
+        if (gameTimer != null && !gameTimer.isRunning()) {
+            startGame();
+        }
+        
+    } catch (Exception e) {
+        System.err.println("❌ Ошибка загрузки из объекта: " + e.getMessage());
+        e.printStackTrace();
+        showGameMessage("Ошибка загрузки игры!", 2000);
+    }
+}
+    
+    // Временное сообщение в игре
+    private void showGameMessage(String message, int displayTimeMs) {
+        this.gameMessage = message;
+        this.messageDisplayTime = System.currentTimeMillis() + displayTimeMs;
     }
     
     // ============ ГЕНЕРАЦИЯ МИРА ============
@@ -135,7 +430,8 @@ public class GamePanel extends JPanel implements KeyListener {
         generateBiomes();
         generateTerrainFromBiomes();
         generateWaterBodies();
-        System.out.println("✅ Мир сгенерирован: биомы, озера и реки созданы");
+        
+        System.out.println("✅ Мир сгенерирован: биомы, озера, реки созданы");
     }
     
     private void generateBiomes() {
@@ -417,7 +713,7 @@ public class GamePanel extends JPanel implements KeyListener {
             250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,
             189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,
             172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,
-            228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,
+            228,251,34,242,193,238,210,144,12,191,191,179,162,241,81,51,145,235,249,14,239,
             107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,
             138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
         };
@@ -490,10 +786,20 @@ public class GamePanel extends JPanel implements KeyListener {
     }
     
     public void startGame() {
+        // Убедимся, что игра не на паузе при старте
+        if (gameWindow != null) {
+            gameWindow.resumeGame();
+        }
+        
         gameTimer = new Timer(50, e -> {
             player.update();
             updateRabbits();
             updateCamera();
+            
+            // Обновляем отображение сообщения
+            if (System.currentTimeMillis() > messageDisplayTime) {
+                gameMessage = "";
+            }
             
             if (isMultiplayer) {
                 sendPlayerUpdate();
@@ -502,15 +808,16 @@ public class GamePanel extends JPanel implements KeyListener {
             repaint();
         });
         gameTimer.start();
+        requestFocusInWindow(); // Получаем фокус для обработки клавиш
         System.out.println("🎮 Игра запущена" + (isMultiplayer ? " (Мультиплеер)" : " (Одиночная)"));
     }
     
     public void stopGame() {
-        if (gameTimer != null) {
+        if (gameTimer != null && gameTimer.isRunning()) {
             gameTimer.stop();
             System.out.println("🎮 Игра остановлена");
         }
-        if (attackTimer != null) {
+        if (attackTimer != null && attackTimer.isRunning()) {
             attackTimer.stop();
         }
         if (isMultiplayer) {
@@ -608,11 +915,67 @@ public class GamePanel extends JPanel implements KeyListener {
             drawInventoryScreen(g);
         } else {
             drawMap(g);
-            drawGameUI(g); // Новый улучшенный интерфейс
+            drawGameUI(g);
+            
+            // Рисуем временное сообщение
+            if (!gameMessage.isEmpty()) {
+                drawGameMessage(g);
+            }
+            
+            // Рисуем индикатор паузы если игра на паузе
+            if (gameWindow != null && gameWindow.isPaused()) {
+                drawPauseIndicator(g);
+            }
         }
     }
     
+    private void drawGameMessage(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g;
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        Font font = new Font("Arial", Font.BOLD, 16);
+        FontMetrics fm = g2d.getFontMetrics(font);
+        int messageWidth = fm.stringWidth(gameMessage);
+        int messageHeight = fm.getHeight();
+        
+        int x = (getWidth() - messageWidth) / 2;
+        int y = 50;
+        
+        // Фон сообщения
+        g2d.setColor(new Color(0, 0, 0, 180));
+        g2d.fillRoundRect(x - 10, y - messageHeight + 5, messageWidth + 20, messageHeight + 10, 15, 15);
+        
+        // Текст сообщения
+        g2d.setFont(font);
+        g2d.setColor(Color.YELLOW);
+        g2d.drawString(gameMessage, x, y);
+    }
+    
+    private void drawPauseIndicator(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g;
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        String pauseText = "ПАУЗА";
+        Font font = new Font("Arial", Font.BOLD, 48);
+        FontMetrics fm = g2d.getFontMetrics(font);
+        int textWidth = fm.stringWidth(pauseText);
+        int textHeight = fm.getHeight();
+        
+        int x = (getWidth() - textWidth) / 2;
+        int y = getHeight() / 2;
+        
+        // Тень текста
+        g2d.setColor(new Color(0, 0, 0, 150));
+        g2d.setFont(font);
+        g2d.drawString(pauseText, x + 4, y + 4);
+        
+        // Основной текст
+        g2d.setColor(new Color(255, 215, 0, 200));
+        g2d.drawString(pauseText, x, y);
+    }
+    
     private void drawMap(Graphics g) {
+        // Сначала рисуем основную карту
         for (int screenY = 0; screenY < visibleTilesY; screenY++) {
             int worldY = (int) Math.floor(cameraY) + screenY;
             if (worldY < 0 || worldY >= GameConstants.MAP_HEIGHT) continue;
@@ -632,6 +995,10 @@ public class GamePanel extends JPanel implements KeyListener {
             }
         }
         
+        // Затем рисуем крыши поверх (если нужно)
+        drawRoofs(g);
+        
+        // Остальная отрисовка (игроки, враги, эффекты)...
         if (showAttackRange && !inventoryVisible) {
             drawAttackRange(g);
         }
@@ -648,6 +1015,56 @@ public class GamePanel extends JPanel implements KeyListener {
         if (isMultiplayer) {
             drawRemotePlayers(g);
         }
+    }
+    
+    private void drawRoofs(Graphics g) {
+        for (int screenY = 0; screenY < visibleTilesY; screenY++) {
+            int worldY = (int) Math.floor(cameraY) + screenY;
+            if (worldY < 0 || worldY >= GameConstants.MAP_HEIGHT) continue;
+            
+            for (int screenX = 0; screenX < visibleTilesX; screenX++) {
+                int worldX = (int) Math.floor(cameraX) + screenX;
+                if (worldX < 0 || worldX >= GameConstants.MAP_WIDTH) continue;
+                
+                double offsetX = (cameraX - Math.floor(cameraX)) * GameConstants.TILE_SIZE;
+                double offsetY = (cameraY - Math.floor(cameraY)) * GameConstants.TILE_SIZE;
+                
+                int pixelX = (int) (screenX * GameConstants.TILE_SIZE - offsetX);
+                int pixelY = (int) (screenY * GameConstants.TILE_SIZE - offsetY);
+                
+                char terrain = map[worldY][worldX];
+                
+                // Рисуем крышу только для тайлов с крышей
+                if (terrain == GameConstants.ROOFED) {
+                    drawRoof(g, pixelX, pixelY);
+                }
+            }
+        }
+    }
+    
+    private void drawRoof(Graphics g, int x, int y) {
+        String textureName = GameConstants.TEXTURE_ROOF;
+        
+        try {
+            BufferedImage texture = TextureManager.getInstance().getTexture(textureName);
+            if (texture != null) {
+                // Рисуем крышу с полупрозрачностью для видимости интерьера
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
+                g2d.drawImage(texture, x, y, GameConstants.TILE_SIZE, GameConstants.TILE_SIZE, null);
+                g2d.dispose();
+                return;
+            }
+        } catch (Exception e) {
+            System.out.println("Ошибка рисования текстуры крыши: " + e.getMessage());
+        }
+        
+        // Запасной вариант - полупрозрачный серый квадрат
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.6f));
+        g2d.setColor(new Color(80, 80, 80));
+        g2d.fillRect(x, y, GameConstants.TILE_SIZE, GameConstants.TILE_SIZE);
+        g2d.dispose();
     }
     
     private void drawTerrain(Graphics g, int x, int y, char terrain) {
@@ -676,6 +1093,18 @@ public class GamePanel extends JPanel implements KeyListener {
             case GameConstants.WATER: 
                 color = new Color(30, 144, 255);
                 break;
+            case GameConstants.STONE:
+                color = new Color(120, 120, 120);
+                break;
+            case GameConstants.WOOD_PLANK:
+                color = new Color(160, 120, 80);
+                break;
+            case GameConstants.GLASS:
+                color = new Color(200, 220, 255, 150);
+                break;
+            case GameConstants.ROOFED:
+                // Крыша уже отрисована в drawRoofs, поэтому здесь ничего не делаем
+                return;
         }
         
         drawTerrainSymbol(g, x, y, terrain, color);
@@ -1026,8 +1455,6 @@ public class GamePanel extends JPanel implements KeyListener {
         drawInfoText(g2d, x, y, "🌿 БИОМ:", biomeName);
         y += GameConstants.UI_ELEMENT_HEIGHT;
         
-      
-        
         // Кролики поблизости
         int visibleRabbits = countVisibleRabbits();
         drawInfoText(g2d, x, y, "🐇 КРОЛИКИ РЯДОМ:", String.valueOf(visibleRabbits));
@@ -1286,10 +1713,21 @@ public class GamePanel extends JPanel implements KeyListener {
                 case KeyEvent.VK_SPACE:
                     attackAtCursor();
                     break;
-                case KeyEvent.VK_ESCAPE:
+                case KeyEvent.VK_ESCAPE:  // МЕНЮ ПАУЗЫ
                     if (gameWindow != null) {
-                        gameWindow.returnToMenu();
+                        gameWindow.togglePause();
                     }
+                    break;
+                case KeyEvent.VK_P:  // Альтернативная клавиша паузы
+                    if (gameWindow != null) {
+                        gameWindow.togglePause();
+                    }
+                    break;
+                case KeyEvent.VK_F5:
+                    quickSave();
+                    break;
+                case KeyEvent.VK_F9:
+                    quickLoad();
                     break;
                 case KeyEvent.VK_1: 
                     inventoryPanel.setSelectedSlot(0); 
@@ -1342,7 +1780,16 @@ public class GamePanel extends JPanel implements KeyListener {
             checkY >= 0 && checkY < GameConstants.MAP_HEIGHT) {
             
             char terrain = map[checkY][checkX];
-            if (terrain != GameConstants.WATER) {
+            boolean canPass = true;
+            
+            // Проверяем проходимость для структур
+            if (terrain == GameConstants.STONE || terrain == GameConstants.GLASS) {
+                canPass = false; // Стены и стекло непроходимы
+            } else if (terrain == GameConstants.WATER) {
+                canPass = false; // Вода непроходима
+            }
+            
+            if (canPass) {
                 player.move(dx, dy, newDirection, shiftPressed);
             }
         }
@@ -1378,15 +1825,23 @@ public class GamePanel extends JPanel implements KeyListener {
         double oldX = player.getExactX();
         double oldY = player.getExactY();
         
+        // Сбрасываем генератор структур
+        structureGenerator.reset();
+        
         generateWorld();
         generateRabbits();
         
         player = new Player((int)oldX, (int)oldY);
         centerCameraOnPlayer();
         
+        // Генерируем структуры снова
+        structureGenerator.generateStructures(map, worldSeed, player.getX(), player.getY());
+        
         System.out.println("✅ Мир перегенерирован, игрок на позиции: " + oldX + ", " + oldY);
     }
-    
+   public SaveLoadManager getSaveManager() {
+    return saveManager;
+}
     public void regenerateWorldWithSeed(long seed) {
         this.worldSeed = seed;
         regenerateWorld();
@@ -1418,6 +1873,26 @@ public class GamePanel extends JPanel implements KeyListener {
         return player.getExactY();
     }
     
+    public Player getPlayer() {
+        return player;
+    }
+    
+    public char[][] getMapData() {
+        return map;
+    }
+    
+    public int[][] getBiomeData() {
+        return biomes;
+    }
+    
+    public List<Rabbit> getRabbits() {
+        return rabbits;
+    }
+    
+    public StructureGenerator getStructureGenerator() {
+        return structureGenerator;
+    }
+    
     public MultiplayerManager getMultiplayerManager() {
         return multiplayerManager;
     }
@@ -1428,5 +1903,97 @@ public class GamePanel extends JPanel implements KeyListener {
     
     public boolean startMultiplayerGame(boolean createGame) {
         return startMultiplayerGame(createGame, "localhost");
+    }
+    
+    // Метод для экспорта состояния мира в строку Base64
+    public String exportWorldState() {
+        try {
+            GameSaveData saveData = new GameSaveData();
+            
+            // Заполняем данные как в saveGame
+            saveData.setPlayerX(player.getExactX());
+            saveData.setPlayerY(player.getExactY());
+            saveData.setPlayerHealth(player.getHealth());
+            saveData.setPlayerHunger(player.getHunger());
+            saveData.setPlayerExperience(player.getExperience());
+            saveData.setPlayerLevel(player.getLevel());
+            saveData.setPlayerDirection(player.getDirection());
+            
+            saveData.setWorldSeed(worldSeed);
+            
+            char[][] mapCopy = new char[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
+            for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
+                System.arraycopy(map[y], 0, mapCopy[y], 0, GameConstants.MAP_WIDTH);
+            }
+            saveData.setMapData(mapCopy);
+            
+            int[][] biomeCopy = new int[GameConstants.MAP_HEIGHT][GameConstants.MAP_WIDTH];
+            for (int y = 0; y < GameConstants.MAP_HEIGHT; y++) {
+                System.arraycopy(biomes[y], 0, biomeCopy[y], 0, GameConstants.MAP_WIDTH);
+            }
+            saveData.setBiomeData(biomeCopy);
+            
+            List<RabbitSaveData> rabbitsData = new ArrayList<>();
+            for (Rabbit rabbit : rabbits) {
+                if (rabbit.isAlive()) {
+                    RabbitSaveData rabbitData = new RabbitSaveData();
+                    rabbitData.setX(rabbit.getX());
+                    rabbitData.setY(rabbit.getY());
+                    rabbitData.setHealth(rabbit.getHealth());
+                    rabbitsData.add(rabbitData);
+                }
+            }
+            saveData.setRabbitsData(rabbitsData);
+            
+            if (structureGenerator != null) {
+                saveData.setHouseGenerated(structureGenerator.isHouseGenerated());
+                int[] housePos = structureGenerator.getHousePosition();
+                saveData.setHouseX(housePos[0]);
+                saveData.setHouseY(housePos[1]);
+            }
+            
+            saveData.setSaveName("multiplayer_sync_" + System.currentTimeMillis());
+            saveData.setSaveTimestamp(System.currentTimeMillis());
+            
+            return SaveSerializer.serializeSaveData(saveData);
+        } catch (Exception e) {
+            System.err.println("❌ Ошибка экспорта состояния мира: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+    
+    // Метод для импорта состояния мира из строки Base64
+    public void importWorldState(String serializedData) {
+        try {
+            GameSaveData saveData = SaveSerializer.deserializeSaveData(serializedData);
+            if (saveData != null) {
+                loadFromSave(saveData);
+                System.out.println("✅ Состояние мира синхронизировано");
+                showGameMessage("Мир синхронизирован с хостом", 2000);
+            }
+        } catch (Exception e) {
+            System.err.println("❌ Ошибка импорта состояния мира: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    // Метод для синхронизации в мультиплеере
+    public void syncWorldInMultiplayer() {
+        if (isMultiplayer && multiplayerManager.isServer()) {
+            String worldState = exportWorldState();
+            if (worldState != null) {
+                // Отправляем всем клиентам
+                for (ClientHandler client : multiplayerManager.getNetworkManager().getClients()) {
+                    multiplayerManager.sendWorldSave(client, worldState);
+                }
+            }
+        }
+    }
+    
+    public void updateGameState() {
+        // Метод для обновления состояния игры (может быть вызван при выходе из паузы)
+        centerCameraOnPlayer();
+        repaint();
     }
 }

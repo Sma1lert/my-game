@@ -6,6 +6,9 @@ public class Rabbit {
     private int health;
     private int moveCooldown;
     private Random random;
+    public void setHealth(int health) {
+    this.health = health;
+}
     
     public Rabbit(int x, int y) {
         this.x = x;

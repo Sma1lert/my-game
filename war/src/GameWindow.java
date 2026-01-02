@@ -9,6 +9,12 @@ public class GameWindow {
     private MainMenuPanel menuPanel;
     private SettingsPanel settingsPanel;
     private MultiplayerLobbyPanel lobbyPanel;
+    private SaveLoadPanel savePanel;
+    private SaveLoadPanel loadPanel;
+    
+    // Добавляем панель паузы
+    private PauseMenuPanel pausePanel;
+    private boolean isPaused = false;
     
     public GameWindow() {
         initialize();
@@ -28,6 +34,7 @@ public class GameWindow {
         gamePanel = new GamePanel(this);
         settingsPanel = new SettingsPanel();
         lobbyPanel = new MultiplayerLobbyPanel();
+        pausePanel = new PauseMenuPanel(); // Новая панель паузы
         
         // Настраиваем слушателей
         setupListeners();
@@ -37,6 +44,7 @@ public class GameWindow {
         mainPanel.add(gamePanel, "Game");
         mainPanel.add(settingsPanel, "Settings");
         mainPanel.add(lobbyPanel, "Lobby");
+        mainPanel.add(pausePanel, "Pause"); // Добавляем панель паузы
         
         frame.add(mainPanel);
         frame.pack();
@@ -67,6 +75,16 @@ public class GameWindow {
             }
             
             @Override
+            public void onSaveGame() {
+                showSavePanel();
+            }
+            
+            @Override
+            public void onLoadGame() {
+                showLoadPanel();
+            }
+            
+            @Override
             public void onSettings() {
                 showSettings();
             }
@@ -81,6 +99,18 @@ public class GameWindow {
             @Override
             public void onBackToMenu() {
                 showMenu();
+            }
+            
+            @Override
+            public void onExportSave() {
+                // Реализация экспорта сохранения
+                showSavePanel();
+            }
+            
+            @Override
+            public void onImportSave() {
+                // Реализация импорта сохранения
+                showLoadPanel();
             }
         });
         
@@ -98,6 +128,34 @@ public class GameWindow {
             @Override
             public void onBackToMenu() {
                 showMenu();
+            }
+        });
+        
+        // Добавляем слушатель для панели паузы
+        pausePanel.setListener(new PauseMenuPanel.PauseMenuListener() {
+            @Override
+            public void onResume() {
+                resumeGame();
+            }
+            
+            @Override
+            public void onSave() {
+                showSavePanelFromPause();
+            }
+            
+            @Override
+            public void onLoad() {
+                showLoadPanelFromPause();
+            }
+            
+            @Override
+            public void onMainMenu() {
+                returnToMenuFromPause();
+            }
+            
+            @Override
+            public void onExit() {
+                exitGameFromPause();
             }
         });
     }
@@ -209,19 +267,138 @@ public class GameWindow {
         }
     }
     
-    // Метод для возврата в меню из игры
-    public void returnToMenu() {
+    // ============ СИСТЕМА ПАУЗЫ ============
+    
+    public void togglePause() {
+        if (!isPaused) {
+            pauseGame();
+        } else {
+            resumeGame();
+        }
+    }
+    
+    public void pauseGame() {
+        if (!isPaused && isGameRunning()) {
+            isPaused = true;
+            
+            // Останавливаем игровой таймер
+            if (gamePanel != null) {
+                gamePanel.stopGame();
+            }
+            
+            // Переключаемся на экран паузы
+            cardLayout.show(mainPanel, "Pause");
+            
+            System.out.println("⏸ Игра поставлена на паузу");
+        }
+    }
+    
+    public void resumeGame() {
+        if (isPaused) {
+            isPaused = false;
+            
+            // Возвращаемся к игре
+            cardLayout.show(mainPanel, "Game");
+            
+            // Перезапускаем игровой таймер
+            if (gamePanel != null) {
+                gamePanel.startGame();
+                gamePanel.requestFocusInWindow(); // Возвращаем фокус на игровую панель
+            }
+            
+            System.out.println("▶ Игра возобновлена");
+        }
+    }
+    
+    private void showSavePanelFromPause() {
+    // Показываем панель сохранения без снятия паузы
+    showSavePanel();
+    System.out.println("💾 Переход к сохранению из паузы");
+}
+
+private void showLoadPanelFromPause() {
+    // Показываем панель загрузки без снятия паузы
+    showLoadPanel();
+    System.out.println("📂 Переход к загрузке из паузы");
+}
+    
+    private void returnToMenuFromPause() {
         int result = JOptionPane.showConfirmDialog(frame,
             "Вернуться в главное меню?\nТекущий прогресс будет потерян.",
             "Подтверждение",
             JOptionPane.YES_NO_OPTION);
             
         if (result == JOptionPane.YES_OPTION) {
+            isPaused = false;
             showMenu();
         }
     }
     
-    // Дополнительные методы для управления окном
+    private void exitGameFromPause() {
+        int result = JOptionPane.showConfirmDialog(frame,
+            "Вы действительно хотите выйти из игры?",
+            "Подтверждение выхода",
+            JOptionPane.YES_NO_OPTION);
+            
+        if (result == JOptionPane.YES_OPTION) {
+            // Корректно останавливаем игру перед выходом
+            if (gamePanel != null) {
+                gamePanel.stopGame();
+            }
+            System.out.println("🛑 Выход из игры...");
+            System.exit(0);
+        }
+    }
+    
+    private boolean isGameRunning() {
+        return frame.isVisible() && cardLayout != null;
+    }
+    
+    // ============ МЕТОД ДЛЯ ВОЗВРАТА В МЕНЮ ИЗ ИГРЫ ============
+    
+    public void returnToMenu() {
+        // Вместо прямого возврата в меню, показываем меню паузы
+        pauseGame();
+    }
+    
+    // ============ МЕТОДЫ ДЛЯ ПАНЕЛИ СОХРАНЕНИЯ/ЗАГРУЗКИ ============
+    
+    public void showSavePanel() {
+        // Проверяем, есть ли активная игра
+        if (gamePanel == null) {
+            JOptionPane.showMessageDialog(frame,
+                "Для сохранения необходимо начать игру!",
+                "Внимание",
+                JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        if (savePanel == null) {
+            savePanel = new SaveLoadPanel(this, true);
+            mainPanel.add(savePanel, "Save");
+        } else {
+            savePanel.refreshSaveList();
+        }
+        cardLayout.show(mainPanel, "Save");
+    }
+    
+    public void showLoadPanel() {
+        if (loadPanel == null) {
+            loadPanel = new SaveLoadPanel(this, false);
+            mainPanel.add(loadPanel, "Load");
+        } else {
+            loadPanel.refreshSaveList();
+        }
+        cardLayout.show(mainPanel, "Load");
+    }
+    
+    public void showGamePanel() {
+        cardLayout.show(mainPanel, "Game");
+        gamePanel.requestFocusInWindow();
+    }
+    
+    // ============ ДОПОЛНИТЕЛЬНЫЕ МЕТОДЫ ============
+    
     public void setTitle(String title) {
         frame.setTitle(title);
     }
@@ -230,233 +407,20 @@ public class GameWindow {
         JOptionPane.showMessageDialog(frame, message, title, messageType);
     }
     
-    // Метод для получения ссылки на GamePanel (может пригодиться)
     public GamePanel getGamePanel() {
         return gamePanel;
     }
     
-    // Метод для принудительного закрытия игры
+    public boolean isPaused() {
+        return isPaused;
+    }
+    
     public void shutdown() {
         if (gamePanel != null) {
             gamePanel.stopGame();
         }
         frame.dispose();
-    }
-}
+        }
 
-// Класс лобби для мультиплеера
-class MultiplayerLobbyPanel extends JPanel {
-    private JButton startButton;
-    private JButton joinButton;
-    private JButton backButton;
-    private JTextField ipField;
-    private JLabel statusLabel;
-    private LobbyListener listener;
-    private boolean isHost = false;
-    
-    public interface LobbyListener {
-        void onStartGame();
-        void onJoinGame(String ipAddress);
-        void onBackToMenu();
-    }
-    
-    public MultiplayerLobbyPanel() {
-        setLayout(new BorderLayout());
-        setBackground(Color.DARK_GRAY);
-        initializeLobby();
-    }
-    
-    public void setListener(LobbyListener listener) {
-        this.listener = listener;
-    }
-    
-    public void setHostMode(boolean isHost) {
-        this.isHost = isHost;
-        updateLobbyDisplay();
-    }
-    
-    private void initializeLobby() {
-        // Заголовок
-        JLabel titleLabel = new JLabel("МУЛЬТИПЛЕЕР", SwingConstants.CENTER);
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
-        titleLabel.setForeground(Color.YELLOW);
-        titleLabel.setBorder(BorderFactory.createEmptyBorder(50, 0, 30, 0));
-        add(titleLabel, BorderLayout.NORTH);
-        
-        // Центральная панель с элементами управления
-        JPanel centerPanel = new JPanel();
-        centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
-        centerPanel.setBackground(Color.DARK_GRAY);
-        centerPanel.setBorder(BorderFactory.createEmptyBorder(20, 50, 20, 50));
-        
-        // Статус лобби
-        statusLabel = new JLabel("", SwingConstants.CENTER);
-        statusLabel.setFont(new Font("Arial", Font.BOLD, 16));
-        statusLabel.setForeground(Color.WHITE);
-        statusLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        
-        // Поле для ввода IP (для клиента)
-        JPanel ipPanel = new JPanel(new FlowLayout());
-        ipPanel.setBackground(Color.DARK_GRAY);
-        
-        JLabel ipLabel = new JLabel("IP адрес сервера:");
-        ipLabel.setForeground(Color.WHITE);
-        ipLabel.setFont(new Font("Arial", Font.PLAIN, 14));
-        
-        ipField = new JTextField("localhost", 15);
-        ipField.setFont(new Font("Arial", Font.PLAIN, 14));
-        ipField.setMaximumSize(new Dimension(200, 30));
-        
-        // Кнопка для автоматического определения IP в Radmin VPN
-        JButton detectIPButton = new JButton("Авто IP");
-        detectIPButton.setFont(new Font("Arial", Font.PLAIN, 12));
-        detectIPButton.addActionListener(e -> {
-            String radminIP = detectRadminIP();
-            if (radminIP != null) {
-                ipField.setText(radminIP);
-                statusLabel.setText("Найден IP: " + radminIP);
-            } else {
-                statusLabel.setText("IP не найден. Введите вручную");
-            }
-        });
-        
-        ipPanel.add(ipLabel);
-        ipPanel.add(ipField);
-        ipPanel.add(detectIPButton);
-        ipPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        
-        // Кнопка запуска/присоединения
-        startButton = new JButton();
-        startButton.setFont(new Font("Arial", Font.BOLD, 16));
-        startButton.setPreferredSize(new Dimension(200, 40));
-        startButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        startButton.addActionListener(e -> {
-            if (isHost) {
-                if (listener != null) {
-                    System.out.println("🎮 Создание мультиплеерной игры...");
-                    listener.onStartGame();
-                }
-            } else {
-                String ip = ipField.getText().trim();
-                if (!ip.isEmpty()) {
-                    if (listener != null) {
-                        System.out.println("🎮 Присоединение к игре: " + ip);
-                        listener.onJoinGame(ip);
-                    }
-                } else {
-                    JOptionPane.showMessageDialog(this, 
-                        "Введите IP адрес сервера!", 
-                        "Ошибка", 
-                        JOptionPane.WARNING_MESSAGE);
-                }
-            }
-        });
-        
-        // Информационная панель
-        JPanel infoPanel = new JPanel();
-        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
-        infoPanel.setBackground(Color.DARK_GRAY);
-        infoPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
-        
-        JLabel infoLabel1 = new JLabel("Инструкция по мультиплееру:");
-        infoLabel1.setFont(new Font("Arial", Font.BOLD, 14));
-        infoLabel1.setForeground(Color.CYAN);
-        infoLabel1.setAlignmentX(Component.CENTER_ALIGNMENT);
-        
-        JLabel infoLabel2 = new JLabel("• Хост создает игру и становится сервером");
-        JLabel infoLabel3 = new JLabel("• Клиенты подключаются по IP хоста");
-        JLabel infoLabel4 = new JLabel("• Все игроки видят одинаковый мир");
-        JLabel infoLabel5 = new JLabel("• Игроки появляются рядом друг с другом");
-        JLabel infoLabel6 = new JLabel("• Порт: 27333");
-        JLabel infoLabel7 = new JLabel("• Для Radmin VPN используйте 'Авто IP'");
-        
-        for (JLabel label : new JLabel[]{infoLabel2, infoLabel3, infoLabel4, infoLabel5, infoLabel6, infoLabel7}) {
-            label.setFont(new Font("Arial", Font.PLAIN, 12));
-            label.setForeground(Color.LIGHT_GRAY);
-            label.setAlignmentX(Component.CENTER_ALIGNMENT);
-        }
-        
-        infoPanel.add(infoLabel1);
-        infoPanel.add(Box.createVerticalStrut(10));
-        infoPanel.add(infoLabel2);
-        infoPanel.add(infoLabel3);
-        infoPanel.add(infoLabel4);
-        infoPanel.add(infoLabel5);
-        infoPanel.add(infoLabel6);
-        infoPanel.add(infoLabel7);
-        
-        // Сборка центральной панели
-        centerPanel.add(statusLabel);
-        centerPanel.add(Box.createVerticalStrut(20));
-        
-        if (!isHost) {
-            centerPanel.add(ipPanel);
-            centerPanel.add(Box.createVerticalStrut(10));
-        }
-        
-        centerPanel.add(startButton);
-        centerPanel.add(Box.createVerticalStrut(20));
-        centerPanel.add(infoPanel);
-        
-        add(centerPanel, BorderLayout.CENTER);
-        
-        // Панель кнопки назад
-        JPanel bottomPanel = new JPanel();
-        bottomPanel.setBackground(Color.DARK_GRAY);
-        
-        backButton = new JButton("НАЗАД В МЕНЮ");
-        backButton.setFont(new Font("Arial", Font.BOLD, 14));
-        backButton.addActionListener(e -> {
-            if (listener != null) listener.onBackToMenu();
-        });
-        
-        bottomPanel.add(backButton);
-        add(bottomPanel, BorderLayout.SOUTH);
-        
-        updateLobbyDisplay();
-    }
-    
-    private void updateLobbyDisplay() {
-        if (isHost) {
-            statusLabel.setText("Режим: СОЗДАНИЕ ИГРЫ");
-            startButton.setText("СОЗДАТЬ ИГРУ");
-            ipField.setVisible(false);
-        } else {
-            statusLabel.setText("Режим: ПРИСОЕДИНЕНИЕ");
-            startButton.setText("ПРИСОЕДИНИТЬСЯ");
-            ipField.setVisible(true);
-        }
-        
-        // Обновляем отображение
-        revalidate();
-        repaint();
-    }
-    
-    // Метод для автоматического определения Radmin IP
-    private String detectRadminIP() {
-        try {
-            java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                java.net.NetworkInterface iface = interfaces.nextElement();
-                if (iface.isUp() && !iface.isLoopback()) {
-                    java.util.Enumeration<java.net.InetAddress> addresses = iface.getInetAddresses();
-                    while (addresses.hasMoreElements()) {
-                        java.net.InetAddress addr = addresses.nextElement();
-                        if (addr instanceof java.net.Inet4Address) {
-                            String ip = addr.getHostAddress();
-                            // Radmin VPN обычно использует диапазон 26.x.x.x или 25.x.x.x
-                            if (ip.startsWith("26.") || ip.startsWith("25.")) {
-                                System.out.println("🔍 Найден Radmin VPN IP: " + ip);
-                                return ip;
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.out.println("❌ Ошибка определения IP: " + e.getMessage());
-        }
-        System.out.println("❌ Radmin VPN IP не найден");
-        return null;
-    }
+
 }

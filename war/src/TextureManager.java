@@ -4,13 +4,16 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 public class TextureManager {
     private static TextureManager instance;
     private Map<String, BufferedImage> textures;
+    private Random random;
     
     private TextureManager() {
         textures = new HashMap<>();
+        random = new Random();
         loadTextures();
     }
     
@@ -41,6 +44,12 @@ public class TextureManager {
 
         //животные
         loadTextureFromFile("rabbit", "textures/rabbit_test.png");
+        
+        // Новые текстуры для структур
+        loadTextureFromFile("stone", "textures/stone.png");
+        loadTextureFromFile("wood_plank", "textures/wood_plank.png");
+        loadTextureFromFile("glass", "textures/glass.png");
+        loadTextureFromFile("roof", "textures/roof.png"); // Текстура крыши
         
         // Создаем простую текстуру воды
         textures.put("water", createWaterTexture(32, 32));
@@ -165,6 +174,55 @@ public class TextureManager {
             
             g2d.setColor(new Color(34, 139, 34));
             g2d.fillOval(4, 4, 24, 16); // крона
+        } else if (name.equals("stone")) {
+            // Камень - серый с текстурой
+            g2d.setColor(new Color(120, 120, 120));
+            g2d.fillRect(0, 0, width, height);
+            
+            // Текстура камня
+            g2d.setColor(new Color(100, 100, 100));
+            for (int i = 0; i < 8; i++) {
+                int x1 = random.nextInt(width);
+                int y1 = random.nextInt(height);
+                int x2 = x1 + random.nextInt(5) - 2;
+                int y2 = y1 + random.nextInt(5) - 2;
+                g2d.drawLine(x1, y1, x2, y2);
+            }
+        } else if (name.equals("wood_plank")) {
+            // Деревянные доски - коричневые с текстурой
+            g2d.setColor(new Color(160, 120, 80));
+            g2d.fillRect(0, 0, width, height);
+            
+            // Текстура дерева
+            g2d.setColor(new Color(140, 100, 60));
+            for (int i = 0; i < width; i += 4) {
+                g2d.drawLine(i, 0, i, height);
+            }
+            for (int i = 0; i < height; i += 4) {
+                g2d.drawLine(0, i, width, i);
+            }
+        } else if (name.equals("glass")) {
+            // Стекло - светло-голубое с прозрачностью
+            g2d.setColor(new Color(200, 220, 255, 150));
+            g2d.fillRect(0, 0, width, height);
+            
+            // Отблеск
+            g2d.setColor(new Color(255, 255, 255, 100));
+            g2d.fillRect(width/2, 0, width/2, height/2);
+        } else if (name.equals("roof")) {
+            // Крыша - темно-серая с текстурой черепицы
+            g2d.setColor(new Color(80, 80, 80));
+            g2d.fillRect(0, 0, width, height);
+            
+            // Текстура черепицы
+            g2d.setColor(new Color(60, 60, 60));
+            for (int i = 0; i < width; i += 8) {
+                for (int j = 0; j < height; j += 4) {
+                    if ((i / 8 + j / 4) % 2 == 0) {
+                        g2d.fillRect(i, j, 6, 2);
+                    }
+                }
+            }
         }
         
         // Текст для отладки
